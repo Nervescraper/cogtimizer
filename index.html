@@ -902,6 +902,50 @@
         g.best = null;
       }
 
+      function exportDebugSolution(solutionInventory, label) {
+        const original = window.originalCogInventory;
+        const origBoardCogCount = original.availableSlotKeys.filter(k => original.cogs[k]).length;
+        const solBoardCogCount = solutionInventory.availableSlotKeys.filter(k => solutionInventory.cogs[k]).length;
+        const origSpareCount = Object.keys(original.cogs).filter(k => Number(k) >= 108).length;
+        const solSpareCount = Object.keys(solutionInventory.cogs).filter(k => Number(k) >= 108).length;
+
+        const emptyBoardSlots = solutionInventory.availableSlotKeys.filter(k => !solutionInventory.cogs[k]);
+
+        // Track which initialKeys exist in each
+        const origInitialKeys = new Set(Object.values(original.cogs).map(c => c.initialKey));
+        const solInitialKeys = new Set(Object.values(solutionInventory.cogs).map(c => c.initialKey));
+        const missingFromSolution = [...origInitialKeys].filter(k => !solInitialKeys.has(k));
+        const addedInSolution = [...solInitialKeys].filter(k => !origInitialKeys.has(k));
+
+        const debug = {
+          exportedAt: new Date().toISOString(),
+          label: label || "unknown",
+          summary: {
+            originalBoardCogs: origBoardCogCount,
+            solutionBoardCogs: solBoardCogCount,
+            originalSpareCogs: origSpareCount,
+            solutionSpareCogs: solSpareCount,
+            originalTotalCogs: Object.keys(original.cogs).length,
+            solutionTotalCogs: Object.keys(solutionInventory.cogs).length,
+            availableSlotCount: solutionInventory.availableSlotKeys.length,
+            emptyBoardSlots: emptyBoardSlots,
+            missingInitialKeys: missingFromSolution,
+            addedInitialKeys: addedInSolution,
+          },
+          original: serialize(original),
+          solution: serialize(solutionInventory),
+        };
+
+        const jsonStr = JSON.stringify(debug, null, 2);
+        navigator.clipboard.writeText(jsonStr).then(() => {
+          alert("Debug JSON copied to clipboard (" + (jsonStr.length / 1024).toFixed(0) + " KB). Paste into a .json file.");
+        }).catch(() => {
+          // Fallback: open in new window
+          const win = window.open("", "_blank");
+          win.document.write("<pre>" + jsonStr.replace(/</g, "&lt;") + "</pre>");
+        });
+      }
+
       // Solution history
       const solutionHistory = [];
 
@@ -930,9 +974,15 @@
 
       function saveSolution(inventory, label, isBalanced = false) {
         const saved = inventory.clone();
+        const emptyCount = saved.availableSlotKeys.filter(k => !saved.cogs[k]).length;
+        if (emptyCount > 0) {
+          console.warn(`Solution "${label}" has ${emptyCount} empty board slot(s):`,
+            saved.availableSlotKeys.filter(k => !saved.cogs[k]));
+        }
         solutionHistory.push({
           inventory: saved,
           label: label,
+          emptySlots: emptyCount,
           scores: {
             buildRate: inventory.score.buildRate,
             expBonus: inventory.score.expBonus,
@@ -1034,7 +1084,7 @@
           const s = entry.scores;
           const tr = document.createElement("tr");
 
-          // Load button
+          // Load + Export buttons
           const tdBtn = document.createElement("td");
           tdBtn.style.cssText = cellStyle;
           const loadBtn = document.createElement("button");
@@ -1043,6 +1093,12 @@
           loadBtn.style.cssText = "font-size:0.8em; padding:1px 6px; cursor:pointer;";
           loadBtn.onclick = () => loadSolution(i);
           tdBtn.appendChild(loadBtn);
+          const exportBtn = document.createElement("button");
+          exportBtn.innerText = "Export";
+          exportBtn.className = "load-solution-btn";
+          exportBtn.style.cssText = "font-size:0.8em; padding:1px 6px; cursor:pointer; margin-left:2px;";
+          exportBtn.onclick = () => exportDebugSolution(solutionHistory[i].inventory, solutionHistory[i].label);
+          tdBtn.appendChild(exportBtn);
           tr.appendChild(tdBtn);
 
           // Run number
@@ -1091,13 +1147,19 @@
           // Notes column + strikethrough for dominated runs
           const tdNotes = document.createElement("td");
           tdNotes.style.cssText = cellStyle + " " + groupBorder;
+          const notes = [];
           if (dominatedBy[i] >= 0) {
             for (const cell of tr.children) {
               cell.style.textDecoration = "line-through";
             }
             tr.style.opacity = "0.6";
-            tdNotes.textContent = `Run #${dominatedBy[i] + 1} is strictly better, use it instead.`;
+            notes.push(`Run #${dominatedBy[i] + 1} is strictly better, use it instead.`);
           }
+          if (entry.emptySlots > 0) {
+            notes.push(`BUG: ${entry.emptySlots} empty board slot(s) — export and report.`);
+            tr.style.backgroundColor = "#fff3cd";
+          }
+          tdNotes.textContent = notes.join(" ");
           tr.appendChild(tdNotes);
 
           table.appendChild(tr);
