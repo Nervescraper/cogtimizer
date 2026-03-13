@@ -1014,16 +1014,17 @@
         thead.appendChild(thNotes);
         table.appendChild(thead);
 
-        // Precompute domination: for each run, find if a later run is strictly better in all 3 stats
+        // Precompute domination: for each run, find any other run that is strictly better in all 3 stats
         const dominatedBy = new Array(solutionHistory.length).fill(-1);
         for (let i = 0; i < solutionHistory.length; i++) {
           const si = solutionHistory[i].scores;
-          for (let k = i + 1; k < solutionHistory.length; k++) {
+          for (let k = 0; k < solutionHistory.length; k++) {
+            if (k === i) continue;
             const sk = solutionHistory[k].scores;
             if (sk.buildRate >= si.buildRate && sk.expBonus >= si.expBonus && sk.flaggy >= si.flaggy &&
                 (sk.buildRate > si.buildRate || sk.expBonus > si.expBonus || sk.flaggy > si.flaggy)) {
               dominatedBy[i] = k;
-              break; // first dominator is enough
+              break;
             }
           }
         }
@@ -1091,7 +1092,9 @@
           const tdNotes = document.createElement("td");
           tdNotes.style.cssText = cellStyle + " " + groupBorder;
           if (dominatedBy[i] >= 0) {
-            tr.style.textDecoration = "line-through";
+            for (const cell of tr.children) {
+              cell.style.textDecoration = "line-through";
+            }
             tr.style.opacity = "0.6";
             tdNotes.textContent = `Run #${dominatedBy[i] + 1} is strictly better, use it instead.`;
           }
