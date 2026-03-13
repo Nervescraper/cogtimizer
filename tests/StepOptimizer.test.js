@@ -69,10 +69,10 @@ describe('getOptimalSteps — baseline behavior', () => {
   });
 
   it('returns 1 step for a 2-cycle (two cogs swapped)', () => {
-    // Cog A was at 0, now at 1. Cog B was at 1, now at 0.
+    // Cog A was at 0, now at 1. Cog B was at 1, now at 0. Different stats so not eliminated.
     const cogs = cogDict([
-      makeCog(1, 0),
-      makeCog(0, 1),
+      makeCog(1, 0, { buildRate: 10 }),
+      makeCog(0, 1, { buildRate: 20 }),
     ]);
     const steps = getOptimalSteps(BOARD, cogs);
     assert.strictEqual(steps.length, 1);
@@ -90,12 +90,12 @@ describe('getOptimalSteps — baseline behavior', () => {
   });
 
   it('returns 2 steps for two independent 2-cycles', () => {
-    // Cycle 1: A(0->1), B(1->0). Cycle 2: C(10->11), D(11->10).
+    // Cycle 1: A(0->1), B(1->0). Cycle 2: C(10->11), D(11->10). Different stats so not eliminated.
     const cogs = cogDict([
-      makeCog(1, 0),
-      makeCog(0, 1),
-      makeCog(11, 10),
-      makeCog(10, 11),
+      makeCog(1, 0, { buildRate: 10 }),
+      makeCog(0, 1, { buildRate: 20 }),
+      makeCog(11, 10, { buildRate: 30 }),
+      makeCog(10, 11, { buildRate: 40 }),
     ]);
     const steps = getOptimalSteps(BOARD, cogs);
     assert.strictEqual(steps.length, 2);
@@ -203,8 +203,8 @@ describe('getOptimalSteps — replay correctness', () => {
   it('board reference is the exact object passed in', () => {
     const boardObj = { id: 'test-board-ref' };
     const cogs = cogDict([
-      makeCog(1, 0),
-      makeCog(0, 1),
+      makeCog(1, 0, { buildRate: 10 }),
+      makeCog(0, 1, { buildRate: 20 }),
     ]);
     const steps = getOptimalSteps(boardObj, cogs);
     assert.strictEqual(steps.length, 1);

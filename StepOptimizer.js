@@ -38,9 +38,7 @@ function getOptimalSteps(board, cogs) {
     const otherKey = String(cogA.key);
     const cogB = interimCogs[otherKey];
     // Check: is this a direct 2-swap (A at B's original pos, B at A's original pos)?
-    // Only eliminate if at least one cog has meaningful stats (avoids eliminating blank-cog swaps)
-    const hasMeaningfulStats = (cogA.buildRate || cogA.expBonus || cogA.flaggy);
-    if (cogB && String(cogB.key) === key && hasMeaningfulStats && cogsAreEquivalent(cogA, cogB)) {
+    if (cogB && String(cogB.key) === key && cogsAreEquivalent(cogA, cogB)) {
       eliminated.add(key);
       eliminated.add(otherKey);
     }
