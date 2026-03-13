@@ -1,11 +1,13 @@
 // In Node (test environment), import Cog; in browser it is a global.
-const _Cog = (typeof require !== 'undefined') ? require('./CogInventory.js').Cog : Cog;
+if (typeof module !== 'undefined' && module.exports) {
+  var Cog = require('./CogInventory.js').Cog;
+}
 
 function getOptimalSteps(board, cogs) {
   const steps = [];
 
   const cogsToMove = Object.values(cogs)
-    .map(c => { return new _Cog(c) })
+    .map(c => { return new Cog(c) })
     .filter((c) => c.key !== c.initialKey);
 
   const interimCogs = {};
