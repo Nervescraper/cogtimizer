@@ -8,8 +8,13 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
 
     <link rel="stylesheet" href="style.css" />
-    <script type="text/javascript" src="Solver.js"></script>
+    <script type="text/javascript" src="BoostPositions.js"></script>
     <script type="text/javascript" src="CogInventory.js"></script>
+    <script type="text/javascript" src="SeededRng.js"></script>
+    <script type="text/javascript" src="IncrementalScorer.js"></script>
+    <script type="text/javascript" src="GreedyInit.js"></script>
+    <script type="text/javascript" src="Serializer.js"></script>
+    <script type="text/javascript" src="Solver.js"></script>
     <script type="text/javascript" src="StepOptimizer.js"></script>
     <script type="text/javascript" src="BoardRenderer.js"></script>
     <script type="text/javascript" src="PlayerRenderer.js"></script>
@@ -90,7 +95,7 @@
           <p>
             <label for="weightPreset">Optimization goal</label><br />
             <select id="weightPreset" style="width:16ch">
-              <option value="longterm" selected>Long-term</option>
+              <option value="longterm" selected>XP Focused</option>
               <option value="flaggy">Flaggy Push</option>
               <option value="balanced">Balanced</option>
               <option value="custom">Custom</option>
@@ -1015,7 +1020,7 @@
             });
           }
 
-          const presetLabels = { longterm: "Long-term", flaggy: "Flaggy Push", balanced: "Balanced" };
+          const presetLabels = { longterm: "XP Focused", flaggy: "Flaggy Push", balanced: "Balanced" };
           let label = presetLabels[preset] || preset;
           if (preset === "custom") {
             label = `Custom (${priorities.buildRate}/${priorities.expBonus}/${priorities.flaggy})`;
