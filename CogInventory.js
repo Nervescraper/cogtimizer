@@ -42,6 +42,14 @@ const Crystal_MAP = {
   ["4"]: "Emerald",
   ["5"]: "BlueGem"
 };
+const TINY_COG_TYPES = { "a": 4, "b": 1, "_": 2 };
+
+function tinyCogMultiplier(type, level) {
+  const base = (25 + 25 * level * level) * (1 + level / 5);
+  const rawBonus = Math.round(TINY_COG_TYPES[type] * base);
+  return 1 + rawBonus / 100;
+}
+
 const INV_ROWS = 8;
 const INV_COLUMNS = 12;
 const SPARE_START = 108;
@@ -247,7 +255,8 @@ class CogInventory {
     this.flaggyShopUpgrades = JSON.parse(save["GemItemsPurchased"])[118];
     // Fetch the list of available cogs
     const cogRaw = JSON.parse(save["CogM"]);
-    const cogIcons = JSON.parse(save["CogO"]).map(c=>{
+    const cogOArray = JSON.parse(save["CogO"]);
+    const cogIcons = cogOArray.map(c=>{
       let icon = {
         type: "cog"
       };
@@ -263,6 +272,9 @@ class CogInventory {
         icon.type = "cog";
         const parsed = c.match(/^CogCry([0-5])$/);
         icon.path = "icons/cogs/" + "Crystal_" + Crystal_MAP[parsed[1]] + ".png";
+      } else if (c.startsWith("CogSm")) {
+        icon.type = "cog";
+        icon.path = "assets/cog_blank.png";
       } else {
         icon.type = "cog";
         const parsed=c.match(/^Cog([0123YZ])(.{2,3})$/);
@@ -274,6 +286,19 @@ class CogInventory {
       }
       return icon;
     });
+    const tinyMultipliers = { buildRate: 1, expBonus: 1, flaggy: 1 };
+    const tinyCogStatMap = { "a": "buildRate", "b": "expBonus", "_": "flaggy" };
+    cogOArray.forEach((c) => {
+      if (c.startsWith("CogSm")) {
+        const parsed = c.match(/^CogSm([ab_])(\d)$/);
+        if (parsed) {
+          const statKey = tinyCogStatMap[parsed[1]];
+          const level = parseInt(parsed[2]);
+          tinyMultipliers[statKey] *= tinyCogMultiplier(parsed[1], level);
+        }
+      }
+    });
+    this.tinyMultipliers = tinyMultipliers;
     const cogArray = Object.entries(cogRaw).map(([key, c]) => {
       const keyNum = Number.parseInt(key);
       return new Cog({
@@ -295,6 +320,7 @@ class CogInventory {
       });
     });
     // Get the available board
+    this.playerCount = playerNames ? playerNames.length : 10;
     this.flagPose = JSON.parse(save["FlagP"]).filter(v=>v>=0); // Only first 4 are used
     const slots = JSON.parse(save["FlagU"]).map((n, i) => {
       if (n > 0 && this.flagPose.includes(i)) return new Cog({ key: i, fixed: true, blocked: true, isFlag: true, icon: "Blank" });
@@ -329,6 +355,8 @@ class CogInventory {
     const res = new CogInventory(c, s);
     res.flagPose = [...this.flagPose];
     res.flaggyShopUpgrades = this.flaggyShopUpgrades;
+    res.playerCount = this.playerCount;
+    res.tinyMultipliers = this.tinyMultipliers ? { ...this.tinyMultipliers } : { buildRate: 1, expBonus: 1, flaggy: 1 };
     res.availableSlotKeys = [...this.availableSlotKeys];
     return res;
   }

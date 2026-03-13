@@ -376,9 +376,10 @@
 
         document.getElementById("solve").disabled = "";
         document.getElementById("steps").innerHTML = "";
-        document.getElementById("buildrate").innerText = mmoifyNumber(initScore.buildRate, false) + "/HR";
-        document.getElementById("xpbonus").innerText = mmoifyNumber(initScore.expBonus, false) + "%";
-        document.getElementById("flaggyrate").innerText = mmoifyNumber(initScore.flaggy, false) + "/HR";
+        const tm = cogInvetory.tinyMultipliers || { buildRate: 1, expBonus: 1, flaggy: 1 };
+        document.getElementById("buildrate").innerText = mmoifyNumber(initScore.buildRate * tm.buildRate, false) + "/HR";
+        document.getElementById("xpbonus").innerText = mmoifyNumber(initScore.expBonus * tm.expBonus, false) + "%";
+        document.getElementById("flaggyrate").innerText = mmoifyNumber(initScore.flaggy * tm.flaggy, false) + "/HR";
         
         for (let oneOption of [...OPTIMIZABLE, "solveTime"]) {
           const val = localStorage.getItem(oneOption);
@@ -491,9 +492,10 @@
         const best = await solver.solve(cogInvetory, solveTime);
         document.getElementById("end").innerText = `Final BuildRate: ${best.score.buildRate}, EXP: ${best.score.expBonus}, Flaggy: ${best.score.flaggy}`;
         
-        document.getElementById("buildrate").innerText = `${mmoifyNumber(best.score.buildRate - start.score.buildRate)}/HR`;
-        document.getElementById("xpbonus").innerText = `${mmoifyNumber(best.score.expBonus - start.score.expBonus)}%`;
-        document.getElementById("flaggyrate").innerText = `${mmoifyNumber(best.score.flaggy - start.score.flaggy)}/HR`;
+        const tm = cogInvetory.tinyMultipliers || { buildRate: 1, expBonus: 1, flaggy: 1 };
+        document.getElementById("buildrate").innerText = `${mmoifyNumber((best.score.buildRate - start.score.buildRate) * tm.buildRate)}/HR`;
+        document.getElementById("xpbonus").innerText = `${mmoifyNumber((best.score.expBonus - start.score.expBonus) * tm.expBonus)}%`;
+        document.getElementById("flaggyrate").innerText = `${mmoifyNumber((best.score.flaggy - start.score.flaggy) * tm.flaggy)}/HR`;
         
         optimalSteps = f.getOptimalSteps(best.board, best.cogs);
         f.printOptimalSteps(optimalSteps);
