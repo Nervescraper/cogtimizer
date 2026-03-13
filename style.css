@@ -343,6 +343,8 @@ table.cogboard tr > td {
 #currentBoard {
     padding: 1em 0 0 0;
     border-right: 4px solid #b47848;
+    min-width: 540px;
+    flex-shrink: 0;
 }
 
 #tinycogs-right {
