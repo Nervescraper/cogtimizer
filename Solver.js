@@ -15,12 +15,11 @@ class Solver {
     }
   }
   
-  getScoreSum(score, playerCount, flagCount, tinyMult) {
+  getScoreSum(score, playerCount, flagCount) {
     let res = 0;
-    const tm = tinyMult || { buildRate: 1, expBonus: 1, flaggy: 1 };
-    res += score.buildRate * tm.buildRate * this.weights.buildRate;
-    res += score.expBonus * tm.expBonus * this.weights.expBonus * (score.expBoost + playerCount) / playerCount;
-    res += score.flaggy * tm.flaggy * this.weights.flaggy * (score.flagBoost + flagCount) / flagCount;
+    res += score.buildRate * this.weights.buildRate;
+    res += score.expBonus * this.weights.expBonus * (score.expBoost + playerCount) / playerCount;
+    res += score.flaggy * this.weights.flaggy * (score.flagBoost + flagCount) / flagCount;
     return res;
   }
   
@@ -39,14 +38,13 @@ class Solver {
     console.log("Solving with goal:", this.weights);
     const playerCount = inventory.playerCount || 10;
     const flagCount = Math.max(inventory.flagPose.length, 1);
-    const tinyMult = inventory.tinyMultipliers || { buildRate: 1, expBonus: 1, flaggy: 1 };
     let lastYield = Date.now();
     let state = inventory.clone();
     const solutions = [state];
     const startTime = Date.now();
     const allSlots = inventory.availableSlotKeys;
     let counter = 0;
-    let currentScore = this.getScoreSum(state.score, playerCount, flagCount, tinyMult);
+    let currentScore = this.getScoreSum(state.score, playerCount, flagCount);
     let temperature = Math.max(Math.abs(currentScore) * 0.05, 100);
     const coolingRate = 0.9997;
 
@@ -61,7 +59,7 @@ class Solver {
       if (counter % 10000 === 0) {
         state = inventory.clone();
         this.shuffle(state);
-        currentScore = this.getScoreSum(state.score, playerCount, flagCount, tinyMult);
+        currentScore = this.getScoreSum(state.score, playerCount, flagCount);
         temperature = Math.max(Math.abs(currentScore) * 0.05, 100);
         solutions.push(state);
       }
@@ -74,7 +72,7 @@ class Solver {
 
       if (slot.fixed || cog.fixed || cog.position().location === "build") continue;
       state.move(slotKey, cogKey);
-      const scoreSumUpdate = this.getScoreSum(state.score, playerCount, flagCount, tinyMult);
+      const scoreSumUpdate = this.getScoreSum(state.score, playerCount, flagCount);
       const delta = scoreSumUpdate - currentScore;
       if (delta > 0 || Math.random() < Math.exp(delta / temperature)) {
         currentScore = scoreSumUpdate;
@@ -84,11 +82,11 @@ class Solver {
       temperature *= coolingRate;
     }
     console.log(`Tried ${counter} switches`);
-    const scores = solutions.map((s)=>this.getScoreSum(s.score, playerCount, flagCount, tinyMult));
+    const scores = solutions.map((s)=>this.getScoreSum(s.score, playerCount, flagCount));
     console.log(`Made ${solutions.length} different attempts with final scores: ${scores}`);
     const bestIndex = scores.indexOf(scores.reduce((a,b)=>Math.max(a,b)));
     let best = solutions[bestIndex];
-    if (g.best === null || this.getScoreSum(g.best.score, playerCount, flagCount, tinyMult) < scores[bestIndex]) {
+    if (g.best === null || this.getScoreSum(g.best.score, playerCount, flagCount) < scores[bestIndex]) {
       console.log("Best solution was number", bestIndex);
       g.best = best;
     } else {

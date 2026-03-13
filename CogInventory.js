@@ -286,19 +286,26 @@ class CogInventory {
       }
       return icon;
     });
-    const tinyMultipliers = { buildRate: 1, expBonus: 1, flaggy: 1 };
+    const tinyBonuses = { buildRate: 0, expBonus: 0, flaggy: 0 };
     const tinyCogStatMap = { "a": "buildRate", "b": "expBonus", "_": "flaggy" };
-    cogOArray.forEach((c) => {
-      if (c.startsWith("CogSm")) {
+    const EXTRA_COL_START = 228;
+    const EXTRA_COL_END = 252;
+    cogOArray.forEach((c, index) => {
+      if (index >= EXTRA_COL_START && index < EXTRA_COL_END && c.startsWith("CogSm")) {
         const parsed = c.match(/^CogSm([ab_])(\d)$/);
         if (parsed) {
           const statKey = tinyCogStatMap[parsed[1]];
           const level = parseInt(parsed[2]);
-          tinyMultipliers[statKey] *= tinyCogMultiplier(parsed[1], level);
+          const base = (25 + 25 * level * level) * (1 + level / 5);
+          tinyBonuses[statKey] += Math.round(TINY_COG_TYPES[parsed[1]] * base);
         }
       }
     });
-    this.tinyMultipliers = tinyMultipliers;
+    this.tinyMultipliers = {
+      buildRate: 1 + tinyBonuses.buildRate / 100,
+      expBonus: 1 + tinyBonuses.expBonus / 100,
+      flaggy: 1 + tinyBonuses.flaggy / 100
+    };
     const cogArray = Object.entries(cogRaw).map(([key, c]) => {
       const keyNum = Number.parseInt(key);
       return new Cog({
@@ -331,7 +338,7 @@ class CogInventory {
     this.slots = {};
     for (const slot of slots) {
       this.slots[slot.key] = slot;
-      if (!slot.fixed) {
+      if (!slot.fixed && slot.key < INV_ROWS * INV_COLUMNS) {
         this.availableSlotKeys.push(slot.key);
       }
     }
