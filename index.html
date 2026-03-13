@@ -44,7 +44,7 @@
       <div id="loader">
       <div class="inputarea">
         <div>Enter config json or username</div>
-        <textarea type="textarea" id="input" rows="10" cols="100"></textarea>
+        <textarea type="textarea" id="input" rows="20" cols="100"></textarea>
         <div>
           <button id="load" style="max-width: 15ch;">Load</button>
         </div>
@@ -284,8 +284,12 @@
           slider.classList.remove("active");
           settingsPage.style.display = "none";
         } else {
-          openCogTab();
-
+          // Move settings into whichever tab is visible
+          if (!window.originalCogInventory) {
+            document.getElementById("loader").appendChild(settingsPage);
+          } else {
+            document.getElementById("result").appendChild(settingsPage);
+          }
           slider.classList.add("active");
           settingsPage.style.display = "";
         }
@@ -1062,6 +1066,9 @@
         document.getElementById("loader").style.display = "none";
         document.getElementById("result").style.display = "inherit";
         document.getElementById("cog-details").style.display = "";
+        // Move settings back into result if it was in loader
+        const settings = document.getElementById("settings");
+        document.getElementById("result").appendChild(settings);
 
         document.getElementById("loaderbtn").className = "";
         document.getElementById("cogbtn").className = "active";
@@ -1071,6 +1078,11 @@
         document.getElementById("loader").style.display = "inherit";
         document.getElementById("result").style.display = "none";
         document.getElementById("cog-details").style.display = "none";
+        // Move settings into loader if it's open
+        const settings = document.getElementById("settings");
+        if (settings.style.display !== "none") {
+          document.getElementById("loader").appendChild(settings);
+        }
 
         document.getElementById("loaderbtn").className = "active";
         document.getElementById("cogbtn").className = "";
@@ -1080,6 +1092,7 @@
         openLoaderTab();
       });
       document.getElementById("cogbtn").addEventListener("click", () => {
+        if (!window.originalCogInventory) return;
         openCogTab();
       });
     </script>
