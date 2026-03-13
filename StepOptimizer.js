@@ -1,6 +1,7 @@
 // In Node (test environment), import Cog; in browser it is a global.
+// Uses globalThis to avoid var hoisting which would shadow the browser global.
 if (typeof module !== 'undefined' && module.exports) {
-  var Cog = require('./CogInventory.js').Cog;
+  globalThis.Cog = require('./CogInventory.js').Cog;
 }
 
 function cogsAreEquivalent(a, b) {
