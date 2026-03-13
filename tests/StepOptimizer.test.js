@@ -1,7 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
 const { Cog } = require('../CogInventory.js');
-const { getOptimalSteps } = require('../StepOptimizer.js');
+const { getOptimalSteps, cogsAreEquivalent } = require('../StepOptimizer.js');
 
 // Helper: create a minimal cog with key and initialKey
 function makeCog(key, initialKey, opts = {}) {
@@ -209,6 +209,70 @@ describe('getOptimalSteps — replay correctness', () => {
     const steps = getOptimalSteps(boardObj, cogs);
     assert.strictEqual(steps.length, 1);
     assert.strictEqual(steps[0].board, boardObj); // exact reference, not a copy
+  });
+
+});
+
+describe('cogsAreEquivalent', () => {
+
+  it('returns true for identical non-boost cogs', () => {
+    const a = makeCog(0, 0, { buildRate: 10, expBonus: 5, flaggy: 3, icon: { path: 'icons/cogs/Cog_Nooby.png' } });
+    const b = makeCog(1, 1, { buildRate: 10, expBonus: 5, flaggy: 3, icon: { path: 'icons/cogs/Cog_Nooby.png' } });
+    assert.strictEqual(cogsAreEquivalent(a, b), true);
+  });
+
+  it('returns false for different buildRate', () => {
+    const a = makeCog(0, 0, { buildRate: 10 });
+    const b = makeCog(1, 1, { buildRate: 20 });
+    assert.strictEqual(cogsAreEquivalent(a, b), false);
+  });
+
+  it('returns false for different expBonus', () => {
+    const a = makeCog(0, 0, { expBonus: 5 });
+    const b = makeCog(1, 1, { expBonus: 10 });
+    assert.strictEqual(cogsAreEquivalent(a, b), false);
+  });
+
+  it('returns false for different flaggy', () => {
+    const a = makeCog(0, 0, { flaggy: 3 });
+    const b = makeCog(1, 1, { flaggy: 7 });
+    assert.strictEqual(cogsAreEquivalent(a, b), false);
+  });
+
+  it('returns false for different icon.path', () => {
+    const a = makeCog(0, 0, { icon: { path: 'icons/cogs/Cog_Nooby.png' } });
+    const b = makeCog(1, 1, { icon: { path: 'icons/cogs/Spur_Decent.png' } });
+    assert.strictEqual(cogsAreEquivalent(a, b), false);
+  });
+
+  it('returns false when one has boostRadius', () => {
+    const a = makeCog(0, 0, { boostRadius: 'adjacent' });
+    const b = makeCog(1, 1);
+    assert.strictEqual(cogsAreEquivalent(a, b), false);
+  });
+
+  it('returns false when both have boostRadius', () => {
+    const a = makeCog(0, 0, { boostRadius: 'adjacent' });
+    const b = makeCog(1, 1, { boostRadius: 'adjacent' });
+    assert.strictEqual(cogsAreEquivalent(a, b), false);
+  });
+
+  it('returns false when one is a player', () => {
+    const a = makeCog(0, 0, { isPlayer: true });
+    const b = makeCog(1, 1);
+    assert.strictEqual(cogsAreEquivalent(a, b), false);
+  });
+
+  it('returns false when one is a flag', () => {
+    const a = makeCog(0, 0, { isFlag: true });
+    const b = makeCog(1, 1);
+    assert.strictEqual(cogsAreEquivalent(a, b), false);
+  });
+
+  it('handles string icon "Blank" — returns true if stats match', () => {
+    const a = makeCog(0, 0, { icon: 'Blank' });
+    const b = makeCog(1, 1, { icon: 'Blank' });
+    assert.strictEqual(cogsAreEquivalent(a, b), true);
   });
 
 });
