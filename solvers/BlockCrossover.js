@@ -13,7 +13,7 @@
 //   - No duplicate cogs (initialKey uniqueness enforced throughout)
 
 if (typeof require !== 'undefined') {
-  var _mod = require('./CogInventory.js');
+  var _mod = require('../CogInventory.js');
   var CogInventory = _mod.CogInventory;
   var Cog = _mod.Cog;
 }

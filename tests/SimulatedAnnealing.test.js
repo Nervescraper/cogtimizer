@@ -2,7 +2,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { SimulatedAnnealing, SA_DEFAULTS } = require('../SimulatedAnnealing.js');
+const { SimulatedAnnealing, SA_DEFAULTS } = require('../solvers/SimulatedAnnealing.js');
 const { makeCog, buildInventory } = require('./helpers.js');
 const { getScoreSum } = require('../Solver.js');
 const { IncrementalScorer } = require('../IncrementalScorer.js');
@@ -39,14 +39,14 @@ describe('SimulatedAnnealing — constructor', () => {
   it('can be instantiated with a scorer and default settings', () => {
     const inv = buildInventory([makeCog(0, { buildRate: 10 })]);
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, {});
+    const sa = new SimulatedAnnealing({});
     assert.ok(sa instanceof SimulatedAnnealing);
   });
 
   it('merges provided settings with defaults', () => {
     const inv = buildInventory([makeCog(0)]);
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, { staleLimit: 999 });
+    const sa = new SimulatedAnnealing({ staleLimit: 999 });
     assert.strictEqual(sa.settings.staleLimit, 999);
     assert.strictEqual(sa.settings.coolingTarget, SA_DEFAULTS.coolingTarget);
     assert.strictEqual(sa.settings.reheatFactor, SA_DEFAULTS.reheatFactor);
@@ -80,7 +80,7 @@ describe('SimulatedAnnealing — _computeInitialTemp', () => {
   it('returns a positive temperature proportional to score magnitude', () => {
     const inv = buildInventory([makeCog(0, { buildRate: 1000 })]);
     const scorer = makeFixedScorer(inv, 1000);
-    const sa = new SimulatedAnnealing(scorer, {});
+    const sa = new SimulatedAnnealing({});
     const weights = { buildRate: 1, expBonus: 0, flaggy: 0 };
     const temp = sa._computeInitialTemp(scorer.score, weights, null, 10, 1);
     assert.ok(temp > 0, 'temperature should be positive');
@@ -90,7 +90,7 @@ describe('SimulatedAnnealing — _computeInitialTemp', () => {
   it('returns a small temperature when score is near zero (target mode)', () => {
     const inv = buildInventory([makeCog(0)]);
     const scorer = makeFixedScorer(inv, 0);
-    const sa = new SimulatedAnnealing(scorer, {});
+    const sa = new SimulatedAnnealing({});
     // In target mode, scores are 0-1, so temp should be scaled accordingly
     const temp = sa._computeInitialTemp(scorer.score, null, { buildRate: 100, expBonus: 0, flaggy: 0 }, 10, 1);
     assert.ok(temp > 0 && temp <= 0.1, `temp ${temp} should be in (0, 0.1] for target mode`);
@@ -99,7 +99,7 @@ describe('SimulatedAnnealing — _computeInitialTemp', () => {
   it('has a minimum floor so it never returns zero', () => {
     const inv = buildInventory([]);
     const scorer = makeFixedScorer(inv, 0);
-    const sa = new SimulatedAnnealing(scorer, {});
+    const sa = new SimulatedAnnealing({});
     const temp = sa._computeInitialTemp(scorer.score, { buildRate: 0, expBonus: 0, flaggy: 0 }, null, 10, 1);
     assert.ok(temp > 0, 'temperature must always be positive');
   });
@@ -124,7 +124,7 @@ describe('SimulatedAnnealing — _pickMove', () => {
   it('always returns two different positions', () => {
     const inv = makeTestInventory();
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, {});
+    const sa = new SimulatedAnnealing({});
     const rng = new SeededRng(42);
     for (let i = 0; i < 50; i++) {
       const [posA, posB] = sa._pickMove(inv, rng);
@@ -140,7 +140,7 @@ describe('SimulatedAnnealing — _pickMove', () => {
     ];
     const inv = buildInventory(cogs, { availableSlotKeys: [0, 1, 2] });
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, {});
+    const sa = new SimulatedAnnealing({});
     const rng = new SeededRng(42);
     for (let i = 0; i < 100; i++) {
       const [posA, posB] = sa._pickMove(inv, rng);
@@ -154,7 +154,7 @@ describe('SimulatedAnnealing — _pickMove', () => {
   it('produces board-spare swaps roughly 30% of the time', () => {
     const inv = makeTestInventory();
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, { boardSpareRatio: 0.3 });
+    const sa = new SimulatedAnnealing({ boardSpareRatio: 0.3 });
     const rng = new SeededRng(123);
     let spareSwaps = 0;
     const TRIALS = 1000;
@@ -175,7 +175,7 @@ describe('SimulatedAnnealing — _adaptCooling', () => {
   it('decreases cooling rate (cools faster) when acceptance is above target', () => {
     const inv = buildInventory([makeCog(0)]);
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, { coolingTarget: 0.30 });
+    const sa = new SimulatedAnnealing({ coolingTarget: 0.30 });
     const initialRate = 0.9997;
     // Acceptance 0.70 > target 0.30 -> should cool faster -> smaller rate
     const newRate = sa._adaptCooling(initialRate, 0.70, 0.30);
@@ -186,7 +186,7 @@ describe('SimulatedAnnealing — _adaptCooling', () => {
   it('increases cooling rate (cools slower) when acceptance is below target', () => {
     const inv = buildInventory([makeCog(0)]);
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, { coolingTarget: 0.30 });
+    const sa = new SimulatedAnnealing({ coolingTarget: 0.30 });
     const initialRate = 0.9997;
     // Acceptance 0.05 < target 0.30 -> should cool slower -> larger rate
     const newRate = sa._adaptCooling(initialRate, 0.05, 0.30);
@@ -197,7 +197,7 @@ describe('SimulatedAnnealing — _adaptCooling', () => {
   it('keeps rate within safe bounds [0.99, 0.9999]', () => {
     const inv = buildInventory([makeCog(0)]);
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, { coolingTarget: 0.30 });
+    const sa = new SimulatedAnnealing({ coolingTarget: 0.30 });
     // Extreme acceptance values should not push rate outside bounds
     const tooHigh = sa._adaptCooling(0.9997, 1.0, 0.30);
     assert.ok(tooHigh >= 0.99 && tooHigh <= 0.9999, `rate ${tooHigh} out of bounds`);
@@ -208,7 +208,7 @@ describe('SimulatedAnnealing — _adaptCooling', () => {
   it('does not change rate when acceptance matches target exactly', () => {
     const inv = buildInventory([makeCog(0)]);
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, { coolingTarget: 0.30 });
+    const sa = new SimulatedAnnealing({ coolingTarget: 0.30 });
     const initialRate = 0.9997;
     const newRate = sa._adaptCooling(initialRate, 0.30, 0.30);
     // Allow tiny floating point tolerance
@@ -223,28 +223,28 @@ describe('SimulatedAnnealing — _shouldReheat and _applyReheat', () => {
   it('_shouldReheat returns false before staleLimit is reached', () => {
     const inv = buildInventory([makeCog(0)]);
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, { staleLimit: 5000 });
+    const sa = new SimulatedAnnealing({ staleLimit: 5000 });
     assert.strictEqual(sa._shouldReheat(4999), false);
   });
 
   it('_shouldReheat returns true at exactly staleLimit', () => {
     const inv = buildInventory([makeCog(0)]);
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, { staleLimit: 5000 });
+    const sa = new SimulatedAnnealing({ staleLimit: 5000 });
     assert.strictEqual(sa._shouldReheat(5000), true);
   });
 
   it('_shouldReheat returns true beyond staleLimit', () => {
     const inv = buildInventory([makeCog(0)]);
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, { staleLimit: 5000 });
+    const sa = new SimulatedAnnealing({ staleLimit: 5000 });
     assert.strictEqual(sa._shouldReheat(7000), true);
   });
 
   it('_applyReheat returns reheatFactor * initialTemp', () => {
     const inv = buildInventory([makeCog(0)]);
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, { reheatFactor: 0.5 });
+    const sa = new SimulatedAnnealing({ reheatFactor: 0.5 });
     const initialTemp = 1000;
     const newTemp = sa._applyReheat(initialTemp);
     assert.strictEqual(newTemp, 500);
@@ -253,7 +253,7 @@ describe('SimulatedAnnealing — _shouldReheat and _applyReheat', () => {
   it('_applyReheat with factor 0.5 halves the initial temperature', () => {
     const inv = buildInventory([makeCog(0)]);
     const scorer = makeMockScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, { reheatFactor: 0.5 });
+    const sa = new SimulatedAnnealing({ reheatFactor: 0.5 });
     const newTemp = sa._applyReheat(2000);
     assert.strictEqual(newTemp, 1000);
   });
@@ -275,7 +275,8 @@ describe('SimulatedAnnealing — _step', () => {
     const inv = makeTwoCogBoard();
     const scorer = new IncrementalScorer(inv);
     scorer.fullRecompute();
-    const sa = new SimulatedAnnealing(scorer, {});
+    const sa = new SimulatedAnnealing({});
+    sa.scorer = scorer;
     const weights = { buildRate: 1, expBonus: 0, flaggy: 0 };
     const rng = new SeededRng(42);
     const currentScalar = getScoreSum(scorer.score, weights, null, 10, 1);
@@ -288,7 +289,8 @@ describe('SimulatedAnnealing — _step', () => {
     const inv = makeTwoCogBoard();
     const scorer = new IncrementalScorer(inv);
     scorer.fullRecompute();
-    const sa = new SimulatedAnnealing(scorer, {});
+    const sa = new SimulatedAnnealing({});
+    sa.scorer = scorer;
     const weights = { buildRate: 1, expBonus: 0, flaggy: 0 };
     const rng = new SeededRng(42);
     const scoreBefore = getScoreSum(scorer.score, weights, null, 10, 1);
@@ -316,8 +318,8 @@ describe('SimulatedAnnealing — solve()', () => {
     ];
     const inv = buildInventory(cogs, { availableSlotKeys: [0, 1, 2] });
     const scorer = new IncrementalScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, {});
-    const result = sa.solve(inv, 200, () => {});
+    const sa = new SimulatedAnnealing({});
+    const result = sa.solve(scorer, 200, () => {});
     assert.ok(result, 'should return a value');
     assert.ok(typeof result === 'object', 'should return an object (CogInventory)');
   });
@@ -331,9 +333,9 @@ describe('SimulatedAnnealing — solve()', () => {
     ];
     const inv = buildInventory(cogs, { availableSlotKeys: [0, 1, 2, 3] });
     const scorer = new IncrementalScorer(inv);
-    const sa = new SimulatedAnnealing(scorer, {});
+    const sa = new SimulatedAnnealing({});
     let progressCalled = false;
-    const result = sa.solve(inv, 600, (info) => {
+    const result = sa.solve(scorer, 600, (info) => {
       progressCalled = true;
       assert.ok(typeof info.score === 'number', 'progress.score should be a number');
       assert.ok(typeof info.iterations === 'number', 'progress.iterations should be a number');
@@ -354,9 +356,9 @@ describe('SimulatedAnnealing — solve()', () => {
     const scorer = new IncrementalScorer(inv);
     scorer.fullRecompute();
     const weights = { buildRate: 1, expBonus: 1, flaggy: 1 };
-    const sa = new SimulatedAnnealing(scorer, {});
+    const sa = new SimulatedAnnealing({});
     const initialScalar = getScoreSum(scorer.score, weights, null, 10, 1);
-    const result = sa.solve(inv, 300, () => {});
+    const result = sa.solve(scorer, 300, () => {});
     const resultScorer = new IncrementalScorer(result);
     resultScorer.fullRecompute();
     const resultScalar = getScoreSum(resultScorer.score, weights, null, 10, 1);
@@ -375,8 +377,8 @@ describe('SimulatedAnnealing — solve()', () => {
       const inv = buildInventory(cogs, { availableSlotKeys: [0, 1, 2, 3] });
       const scorer = new IncrementalScorer(inv);
       scorer.fullRecompute();
-      const sa = new SimulatedAnnealing(scorer, { seed: 42 });
-      return sa.solve(inv, 300, () => {});
+      const sa = new SimulatedAnnealing({ seed: 42 });
+      return sa.solve(scorer, 300, () => {});
     };
     const result1 = makeRun();
     const result2 = makeRun();

@@ -1,9 +1,9 @@
 // SimulatedAnnealing.js
 
 if (typeof require !== 'undefined') {
-  var _seededRngMod = require('./SeededRng.js');
+  var _seededRngMod = require('../SeededRng.js');
   SeededRng = _seededRngMod.SeededRng;
-  var _solverMod = require('./Solver.js');
+  var _solverMod = require('../Solver.js');
   getScoreSum = _solverMod.getScoreSum;
 }
 
@@ -33,14 +33,12 @@ var SA_DEFAULTS = {
  */
 class SimulatedAnnealing {
   /**
-   * @param {IncrementalScorer} scorer - Scoring engine wrapping the initial inventory
    * @param {Object} settings - Overrides for SA_DEFAULTS. Also accepts:
    *   - seed {number}: RNG seed for reproducibility
    *   - weights {Object}: { buildRate, expBonus, flaggy } for weighted scoring
    *   - targets {Object}: { buildRate, expBonus, flaggy } for target-based scoring
    */
-  constructor(scorer, settings) {
-    this.scorer = scorer;
+  constructor(settings) {
     this.settings = Object.assign({}, SA_DEFAULTS, settings);
   }
 
@@ -216,12 +214,14 @@ class SimulatedAnnealing {
   /**
    * Run the simulated annealing solver.
    *
-   * @param {CogInventory} inventory - Initial board state
+   * @param {IncrementalScorer} scorer - Scoring engine wrapping the initial inventory
    * @param {number} timeLimit - Time budget in milliseconds
    * @param {function} onProgress - Called every ~500ms with { score, iterations, elapsed }
    * @returns {CogInventory} Best solution found
    */
-  solve(inventory, timeLimit, onProgress) {
+  solve(scorer, timeLimit, onProgress) {
+    this.scorer = scorer;
+    var inventory = scorer.inventory;
     var rng = new SeededRng(this.settings.seed || Date.now());
 
     var playerCount = inventory.playerCount || 10;
@@ -230,8 +230,8 @@ class SimulatedAnnealing {
     var targets = this.settings.targets || null;
 
     // Initialize incremental scorer from the provided inventory state
-    this.scorer.fullRecompute();
-    var currentScalar = getScoreSum(this.scorer.score, weights, targets, playerCount, flagCount);
+    scorer.fullRecompute();
+    var currentScalar = getScoreSum(scorer.score, weights, targets, playerCount, flagCount);
 
     var initialTemp = this._computeInitialTemp(
       this.scorer.score, weights, targets, playerCount, flagCount

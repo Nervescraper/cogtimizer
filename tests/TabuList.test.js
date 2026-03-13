@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { TabuList } = require('../TabuList.js');
+const { TabuList } = require('../solvers/TabuList.js');
 
 describe('TabuList', () => {
   it('is empty on construction', () => {

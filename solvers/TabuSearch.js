@@ -2,7 +2,8 @@
 if (typeof require !== 'undefined') {
   var _tabuListMod = require('./TabuList.js');
   TabuList = _tabuListMod.TabuList;
-  var { getScoreSum } = require('./Solver.js');
+  var _solverMod = require('../Solver.js');
+  getScoreSum = _solverMod.getScoreSum;
 }
 
 /**
@@ -25,9 +26,8 @@ class TabuSearch {
    * @param {Object} [settings.weights]          Score weights { buildRate, expBonus, flaggy }
    * @param {Object} [settings.targets]          Score targets { buildRate, expBonus, flaggy }
    */
-  constructor(scorer, settings) {
+  constructor(settings) {
     if (!settings) settings = {};
-    this.scorer = scorer;
     this.sampleSize    = settings.sampleSize    ?? 200;
     this.tabuTenure    = settings.tabuTenure    ?? 50;
     this.diversifyAfter = settings.diversifyAfter ?? 1000;

@@ -13,6 +13,8 @@ class IncrementalScorer {
     this._initFromScratch();
   }
 
+  get inventory() { return this._inv; }
+
   _initFromScratch() {
     const inv = this._inv;
     this._availableSet = new Set(inv.availableSlotKeys);

@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const { CogInventory, Cog } = require('../CogInventory.js');
 const { makeCog, buildInventory } = require('./helpers.js');
 const { SeededRng } = require('../SeededRng.js');
-const { blockCrossover } = require('../BlockCrossover.js');
+const { blockCrossover } = require('../solvers/BlockCrossover.js');
 
 // ─── invariant checker ────────────────────────────────────────────────────────
 

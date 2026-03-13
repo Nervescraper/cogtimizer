@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { TabuSearch } = require('../TabuSearch.js');
+const { TabuSearch } = require('../solvers/TabuSearch.js');
 
 // Minimal mock IncrementalScorer for constructor tests
 function makeScorer(scoreValue) {
@@ -28,11 +28,11 @@ describe('TabuSearch static metadata', () => {
 describe('TabuSearch constructor', () => {
   it('accepts scorer and settings without throwing', () => {
     const scorer = makeScorer();
-    assert.doesNotThrow(() => new TabuSearch(scorer, {}));
+    assert.doesNotThrow(() => new TabuSearch({}));
   });
 
   it('uses default parameters when settings is empty', () => {
-    const ts = new TabuSearch(makeScorer(), {});
+    const ts = new TabuSearch({});
     assert.strictEqual(ts.sampleSize, 200);
     assert.strictEqual(ts.tabuTenure, 50);
     assert.strictEqual(ts.diversifyAfter, 1000);
@@ -40,7 +40,7 @@ describe('TabuSearch constructor', () => {
   });
 
   it('overrides default parameters from settings', () => {
-    const ts = new TabuSearch(makeScorer(), {
+    const ts = new TabuSearch({
       sampleSize: 50,
       tabuTenure: 10,
       diversifyAfter: 200,
@@ -88,14 +88,14 @@ function makeMockScorer(options) {
 describe('TabuSearch.solve() — basic', () => {
   it('returns an inventory object', () => {
     const scorer = makeMockScorer({ scoreSequence: Array(10000).fill(100) });
-    const ts = new TabuSearch(scorer, { sampleSize: 5, tabuTenure: 3 });
+    const ts = new TabuSearch({ sampleSize: 5, tabuTenure: 3 });
     const result = ts.solve(scorer, 50, null);
     assert.ok(result !== null && typeof result === 'object');
   });
 
   it('calls onProgress at least once during a 200ms solve', () => {
     const scorer = makeMockScorer({ scoreSequence: Array(100000).fill(100) });
-    const ts = new TabuSearch(scorer, { sampleSize: 2, tabuTenure: 3 });
+    const ts = new TabuSearch({ sampleSize: 2, tabuTenure: 3 });
     let progressCalled = false;
     ts.solve(scorer, 600, () => { progressCalled = true; });
     assert.ok(progressCalled, 'onProgress was never called');
@@ -104,7 +104,7 @@ describe('TabuSearch.solve() — basic', () => {
   it('tracks the best score seen across all steps', () => {
     const scores = [50, ...Array(50).fill(50), 200, ...Array(50000).fill(50)];
     const scorer = makeMockScorer({ scoreSequence: scores });
-    const ts = new TabuSearch(scorer, { sampleSize: 5, tabuTenure: 3, diversifyAfter: 9999 });
+    const ts = new TabuSearch({ sampleSize: 5, tabuTenure: 3, diversifyAfter: 9999 });
     ts.solve(scorer, 100, null);
     assert.ok(ts._bestInventory !== null);
   });
@@ -116,7 +116,7 @@ describe('TabuSearch.solve() — tabu list consulted', () => {
       availableSlotKeys: [0, 1],
       scoreSequence: Array(100000).fill(100),
     });
-    const ts = new TabuSearch(scorer, { sampleSize: 10, tabuTenure: 5, diversifyAfter: 9999 });
+    const ts = new TabuSearch({ sampleSize: 10, tabuTenure: 5, diversifyAfter: 9999 });
     ts.solve(scorer, 150, null);
     assert.ok(true, 'solve() completed without error with all moves tabu');
   });
@@ -128,7 +128,7 @@ describe('TabuSearch.solve() — aspiration criterion', () => {
       availableSlotKeys: [0, 1, 2],
       scoreSequence: Array(100000).fill(150),
     });
-    const ts = new TabuSearch(scorer, { sampleSize: 5, tabuTenure: 100, diversifyAfter: 9999 });
+    const ts = new TabuSearch({ sampleSize: 5, tabuTenure: 100, diversifyAfter: 9999 });
     assert.doesNotThrow(() => ts.solve(scorer, 100, null));
   });
 });
@@ -136,7 +136,7 @@ describe('TabuSearch.solve() — aspiration criterion', () => {
 describe('TabuSearch.solve() — diversification', () => {
   it('clears the tabu list after diversifyAfter steps without improvement', () => {
     const scorer = makeMockScorer({ scoreSequence: Array(100000).fill(100) });
-    const ts = new TabuSearch(scorer, {
+    const ts = new TabuSearch({
       sampleSize: 2,
       tabuTenure: 50,
       diversifyAfter: 5,
@@ -188,7 +188,7 @@ describe('TabuSearch — reproducibility', () => {
           swapCount++;
         },
       };
-      const ts = new TabuSearch(scorer, {
+      const ts = new TabuSearch({
         sampleSize: 5,
         tabuTenure: 3,
         diversifyAfter: 50,
@@ -237,7 +237,7 @@ describe('TabuSearch — reproducibility', () => {
           swapCount++;
         },
       };
-      const ts = new TabuSearch(scorer, {
+      const ts = new TabuSearch({
         sampleSize: 5,
         tabuTenure: 3,
         rng: makeDetRng(seed),
@@ -261,26 +261,26 @@ describe('TabuSearch — edge cases', () => {
       availableSlotKeys: [0, 1],
       scoreSequence: Array(100000).fill(100),
     });
-    const ts = new TabuSearch(scorer, { sampleSize: 20, tabuTenure: 1, diversifyAfter: 5 });
+    const ts = new TabuSearch({ sampleSize: 20, tabuTenure: 1, diversifyAfter: 5 });
     assert.doesNotThrow(() => ts.solve(scorer, 80, null));
   });
 
   it('handles sampleSize=1 without throwing', () => {
     const scorer = makeMockScorer({ scoreSequence: Array(100000).fill(100) });
-    const ts = new TabuSearch(scorer, { sampleSize: 1, tabuTenure: 3 });
+    const ts = new TabuSearch({ sampleSize: 1, tabuTenure: 3 });
     assert.doesNotThrow(() => ts.solve(scorer, 80, null));
   });
 
   it('handles timeLimit=0 and returns immediately', () => {
     const scorer = makeMockScorer({ scoreSequence: Array(100000).fill(100) });
-    const ts = new TabuSearch(scorer, { sampleSize: 200, tabuTenure: 50 });
+    const ts = new TabuSearch({ sampleSize: 200, tabuTenure: 50 });
     const result = ts.solve(scorer, 0, null);
     assert.ok(result !== undefined);
   });
 
   it('onProgress callback receives expected fields', () => {
     const scorer = makeMockScorer({ scoreSequence: Array(100000).fill(100) });
-    const ts = new TabuSearch(scorer, { sampleSize: 2, tabuTenure: 3 });
+    const ts = new TabuSearch({ sampleSize: 2, tabuTenure: 3 });
     const progressReports = [];
     ts.solve(scorer, 600, (report) => {
       progressReports.push(report);
@@ -295,7 +295,7 @@ describe('TabuSearch — edge cases', () => {
 
   it('_perturb does not throw with minimum slots', () => {
     const scorer = makeMockScorer({ availableSlotKeys: [0, 1] });
-    const ts = new TabuSearch(scorer, { perturbSize: 10 });
+    const ts = new TabuSearch({ perturbSize: 10 });
     assert.doesNotThrow(() => ts._perturb(scorer, [0, 1]));
   });
 });
@@ -304,13 +304,13 @@ describe('TabuSearch — edge cases', () => {
 
 describe('TabuSearch — SolverAlgorithm interface compliance', () => {
   it('has a solve() method', () => {
-    const ts = new TabuSearch(makeScorer(), {});
+    const ts = new TabuSearch({});
     assert.strictEqual(typeof ts.solve, 'function');
   });
 
   it('solve() returns an object (the best inventory)', () => {
     const scorer = makeMockScorer({ scoreSequence: Array(10000).fill(100) });
-    const ts = new TabuSearch(scorer, { sampleSize: 3, tabuTenure: 3 });
+    const ts = new TabuSearch({ sampleSize: 3, tabuTenure: 3 });
     const result = ts.solve(scorer, 50, null);
     assert.strictEqual(typeof result, 'object');
     assert.notStrictEqual(result, null);
@@ -327,7 +327,7 @@ describe('TabuSearch — SolverAlgorithm interface compliance', () => {
   });
 
   it('constructor signature: (scorer, settings)', () => {
-    assert.doesNotThrow(() => new TabuSearch(makeScorer(), {}));
-    assert.doesNotThrow(() => new TabuSearch(makeScorer()));
+    assert.doesNotThrow(() => new TabuSearch({}));
+    assert.doesNotThrow(() => new TabuSearch());
   });
 });

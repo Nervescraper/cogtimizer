@@ -3,14 +3,14 @@
 if (typeof require !== 'undefined') {
   var _crossMod = require('./BlockCrossover.js');
   var blockCrossover = _crossMod.blockCrossover;
-  var _rngMod = require('./SeededRng.js');
+  var _rngMod = require('../SeededRng.js');
   var SeededRng = _rngMod.SeededRng;
-  var _cogMod = require('./CogInventory.js');
+  var _cogMod = require('../CogInventory.js');
   var CogInventory = _cogMod.CogInventory;
   var Cog = _cogMod.Cog;
-  var _scorerMod = require('./IncrementalScorer.js');
+  var _scorerMod = require('../IncrementalScorer.js');
   var IncrementalScorer = _scorerMod.IncrementalScorer;
-  var _solverMod = require('./Solver.js');
+  var _solverMod = require('../Solver.js');
   var getScoreSum = _solverMod.getScoreSum;
 }
 
@@ -35,7 +35,7 @@ class GeneticAlgorithm {
    * @param {IncrementalScorer} scorer
    * @param {Object} settings
    */
-  constructor(scorer, settings) {
+  constructor(settings) {
     this.settings = { ...GA_DEFAULTS, ...settings };
     this.rng = new SeededRng(this.settings.seed);
   }
@@ -249,12 +249,13 @@ class GeneticAlgorithm {
   /**
    * Run the genetic algorithm.
    *
-   * @param {CogInventory} inventory - Starting board (typically from greedy init)
+   * @param {IncrementalScorer} scorer - Scoring engine wrapping the initial inventory
    * @param {number} timeLimit - Time budget in milliseconds
    * @param {function} onProgress - Called each generation with { score, iterations, elapsed }
    * @returns {CogInventory} best solution found
    */
-  solve(inventory, timeLimit, onProgress) {
+  solve(scorer, timeLimit, onProgress) {
+    var inventory = scorer.inventory;
     var startTime = Date.now();
     var playerCount = inventory.playerCount || 10;
     var flagCount = Math.max((inventory.flagPose || []).length, 1);
