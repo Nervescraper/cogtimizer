@@ -752,15 +752,22 @@
 
       function showResult(best) {
         const originalScore = window.originalCogInventory.score;
-        const brDelta = best.score.buildRate - originalScore.buildRate;
-        const xpDelta = (best.score.expBonus - originalScore.expBonus) * getXpMult();
-        const flDelta = best.score.flaggy - originalScore.flaggy;
+        // Suppress deltas that vanish at display precision (e.g. +37K on a 52T value)
+        const brDisplay = mmoifyNumber(best.score.buildRate, false);
+        const brOrigDisplay = mmoifyNumber(originalScore.buildRate, false);
+        const brDelta = brDisplay === brOrigDisplay ? 0 : best.score.buildRate - originalScore.buildRate;
+        const xpDisplay = formatXp(best.score.expBonus);
+        const xpOrigDisplay = formatXp(originalScore.expBonus);
+        const xpDelta = xpDisplay === xpOrigDisplay ? 0 : (best.score.expBonus - originalScore.expBonus) * getXpMult();
+        const flDisplay = mmoifyNumber(best.score.flaggy, false);
+        const flOrigDisplay = mmoifyNumber(originalScore.flaggy, false);
+        const flDelta = flDisplay === flOrigDisplay ? 0 : best.score.flaggy - originalScore.flaggy;
         const brSign = brDelta >= 0 ? "+" : "";
         const xpSign = xpDelta >= 0 ? "+" : "";
         const flSign = flDelta >= 0 ? "+" : "";
-        document.getElementById("buildrate").innerText = `${mmoifyNumber(best.score.buildRate, false)}/HR (${brSign}${mmoifyNumber(brDelta)})`;
-        document.getElementById("xpbonus").innerText = `${formatXp(best.score.expBonus)}% (${xpSign}${mmoifyNumber(xpDelta)})`;
-        document.getElementById("flaggyrate").innerText = `${mmoifyNumber(best.score.flaggy, false)}/HR (${flSign}${mmoifyNumber(flDelta)})`;
+        document.getElementById("buildrate").innerText = `${brDisplay}/HR (${brSign}${mmoifyNumber(brDelta)})`;
+        document.getElementById("xpbonus").innerText = `${xpDisplay}% (${xpSign}${mmoifyNumber(xpDelta)})`;
+        document.getElementById("flaggyrate").innerText = `${flDisplay}/HR (${flSign}${mmoifyNumber(flDelta)})`;
 
         optimalSteps = f.getOptimalSteps(best.board, best.cogs);
         f.printOptimalSteps(optimalSteps);
@@ -897,51 +904,69 @@
           document.getElementById("end").innerText = "";
 
           if (preset === "balanced") {
-            document.getElementById("balanced-details").innerHTML = "";
-            // Phase 1: Find individual bests for each stat
-            const individualBests = {};
+            // Phase 1: Find individual bests for each stat (keep higher of new vs cached)
             const noFlags = cogInvetory.flagPose.length === 0;
-            const detailsDiv = document.getElementById("balanced-details");
 
             for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
               const stat = BALANCED_STAT_NAMES[s];
               const label = BALANCED_STAT_LABELS[s];
-              const unit = BALANCED_STAT_UNITS[s];
               if (stat === "flaggy" && noFlags) {
-                individualBests[stat] = 0;
-                const p = document.createElement("p");
-                p.innerText = `Best ${label}: skipped (no flags)`;
-                detailsDiv.appendChild(p);
+                if (!cachedIndividualBests) cachedIndividualBests = {};
+                cachedIndividualBests[stat] = cachedIndividualBests[stat] || 0;
                 continue;
               }
               solveTextElem.innerText = `Finding best ${label}...`;
               await yield();
-              // Use raw weights (not normalized) so the solver's temperature scaling works
               const w = { buildRate: 0, expBonus: 0, flaggy: 0 };
               w[stat] = 1;
               solver.setWeights(w.buildRate, w.expBonus, w.flaggy);
               const result = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
                 solveTextElem.innerText = `Finding best ${label}... (${i + 1}/${n})`;
               });
-              individualBests[stat] = result.score[stat];
-              console.log(`Best ${stat}: ${individualBests[stat]}`);
-              const p = document.createElement("p");
-              const displayVal = stat === "expBonus" ? formatXp(individualBests[stat]) : mmoifyNumber(individualBests[stat], false);
-              p.innerHTML = `Best ${label}: <span data-stat="${stat}">${displayVal}${unit}</span> `;
-              const rerunBtn = document.createElement("button");
-              rerunBtn.innerText = "Re-run";
-              rerunBtn.className = "rerun-best-btn";
-              rerunBtn.disabled = true; // Disabled until full solve completes
-              rerunBtn.style.cssText = "font-size:0.8em; padding:1px 6px; margin-left:4px; cursor:pointer;";
-              rerunBtn.onclick = () => rerunSingleBest(s);
-              p.appendChild(rerunBtn);
-              detailsDiv.appendChild(p);
+              if (!cachedIndividualBests) cachedIndividualBests = {};
+              const prev = cachedIndividualBests[stat] || 0;
+              cachedIndividualBests[stat] = Math.max(prev, result.score[stat]);
+              console.log(`Best ${stat}: ${cachedIndividualBests[stat]}${result.score[stat] < prev ? " (kept previous)" : ""}`);
             }
 
-            // Cache for re-balancing
-            cachedIndividualBests = individualBests;
+            // Update display values (build div on first run, update spans on re-run)
+            const detailsDiv = document.getElementById("balanced-details");
+            if (detailsDiv.children.length === 0) {
+              for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
+                const stat = BALANCED_STAT_NAMES[s];
+                const label = BALANCED_STAT_LABELS[s];
+                const unit = BALANCED_STAT_UNITS[s];
+                const p = document.createElement("p");
+                if (stat === "flaggy" && noFlags) {
+                  p.innerText = `Best ${label}: skipped (no flags)`;
+                } else {
+                  const displayVal = stat === "expBonus" ? formatXp(cachedIndividualBests[stat]) : mmoifyNumber(cachedIndividualBests[stat], false);
+                  p.innerHTML = `Best ${label}: <span data-stat="${stat}">${displayVal}${unit}</span> `;
+                  const rerunBtn = document.createElement("button");
+                  rerunBtn.innerText = "Re-run";
+                  rerunBtn.className = "rerun-best-btn";
+                  rerunBtn.disabled = true;
+                  rerunBtn.style.cssText = "font-size:0.8em; padding:1px 6px; margin-left:4px; cursor:pointer;";
+                  rerunBtn.onclick = () => rerunSingleBest(s);
+                  p.appendChild(rerunBtn);
+                }
+                detailsDiv.appendChild(p);
+              }
+            } else {
+              // Just update the span values
+              for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
+                const stat = BALANCED_STAT_NAMES[s];
+                const unit = BALANCED_STAT_UNITS[s];
+                const span = detailsDiv.querySelector(`span[data-stat="${stat}"]`);
+                if (span) {
+                  const displayVal = stat === "expBonus" ? formatXp(cachedIndividualBests[stat]) : mmoifyNumber(cachedIndividualBests[stat], false);
+                  span.textContent = `${displayVal}${unit}`;
+                }
+              }
+            }
+
             recalcBalancedTargets();
-            console.log("Individual bests:", individualBests);
+            console.log("Individual bests:", cachedIndividualBests);
             console.log("Targets (90%):", cachedBalancedTargets);
 
             best = await runBalancedPhase2(solveTime, iterations, solveTextElem);
@@ -953,7 +978,14 @@
             best = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
               solveTextElem.innerText = `Optimizing... (${i + 1}/${n})`;
             });
-            document.getElementById("end").innerText = `Final BuildRate: ${mmoifyNumber(best.score.buildRate, false)}/HR, EXP: ${formatXp(best.score.expBonus)}%, Flaggy: ${mmoifyNumber(best.score.flaggy, false)}/HR`;
+            let endText = `Final BuildRate: ${mmoifyNumber(best.score.buildRate, false)}/HR, EXP: ${formatXp(best.score.expBonus)}%, Flaggy: ${mmoifyNumber(best.score.flaggy, false)}/HR`;
+            if (cachedIndividualBests) {
+              const pctBr = cachedIndividualBests.buildRate > 0 ? (best.score.buildRate / cachedIndividualBests.buildRate * 100).toFixed(0) : 100;
+              const pctXp = cachedIndividualBests.expBonus > 0 ? (best.score.expBonus / cachedIndividualBests.expBonus * 100).toFixed(0) : 100;
+              const pctFl = cachedIndividualBests.flaggy > 0 ? (best.score.flaggy / cachedIndividualBests.flaggy * 100).toFixed(0) : 100;
+              endText += ` (${pctBr}%/${pctXp}%/${pctFl}% of best)`;
+            }
+            document.getElementById("end").innerText = endText;
           }
 
           const presetLabels = { longterm: "Long-term", flaggy: "Flaggy Push", balanced: "Balanced", custom: "Custom" };
