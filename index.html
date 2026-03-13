@@ -880,10 +880,10 @@
           const flagCount = Math.max(cogInvetory.flagPose.length, 1);
           let best;
 
-          document.getElementById("balanced-details").innerHTML = "";
           document.getElementById("end").innerText = "";
 
           if (preset === "balanced") {
+            document.getElementById("balanced-details").innerHTML = "";
             // Phase 1: Find individual bests for each stat
             const individualBests = {};
             const noFlags = cogInvetory.flagPose.length === 0;
@@ -932,11 +932,7 @@
             best = await runBalancedPhase2(solveTime, iterations, solveTextElem);
             updateRebalanceButton();
           } else {
-            // Standard weighted solve
-            cachedBalancedTargets = null;
-            cachedIndividualBests = null;
-            lastBalancedResult = null;
-            updateRebalanceButton();
+            // Standard weighted solve — keep cached bests so user can switch back to Balanced
             const weights = prioritiesToWeights(priorities, originalScore, playerCount, flagCount);
             solver.setWeights(weights.buildRate, weights.expBonus, weights.flaggy);
             best = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
