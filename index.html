@@ -585,7 +585,7 @@
       let optimalSteps = undefined;
 
       function stepsChangeHandler(ev) {
-        const clone = cogInvetory.clone();
+        const clone = window.originalCogInventory.clone();
         for (let i = 0; i < ev.page; i++) {
           const step = optimalSteps[i];
           clone.move(step.keyFrom, step.keyTo );
