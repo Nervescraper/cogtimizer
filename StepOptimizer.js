@@ -47,13 +47,15 @@ function getOptimalSteps(board, cogs) {
     delete interimCogs[key];
   }
 
-  // Multi-step movements
+  // Multi-step movements — tag each step with its cycleId for sorting
+  let cycleId = 0;
   let tuple;
   while (tuple = Object.entries(interimCogs)[0]) {
     const [key, cog] = tuple;
     const targetCog = interimCogs[cog.key] || { icon: "Blank", key, position: cog.position.bind(cog) };
     if (targetCog === cog) {
       delete interimCogs[key];
+      cycleId++;
       continue;
     }
     interimCogs[key] = targetCog;
@@ -62,9 +64,54 @@ function getOptimalSteps(board, cogs) {
       cog,
       targetCog,
       keyFrom: Number.parseInt(key),
-      keyTo: Number.parseInt(cog.key)
+      keyTo: Number.parseInt(cog.key),
+      cycleId
     });
     delete interimCogs[cog.key];
+  }
+
+  // Geographic sort — reorder cycles, preserving intra-cycle step order
+  const SPARE_START = 108;
+  const BUILD_START = 96;
+  const BUILD_END = 107;
+
+  function cycleSortKey(step) {
+    const kf = step.keyFrom;
+    const kt = step.keyTo;
+    // Classification priority: spare first, then build, then board
+    if (kf >= SPARE_START || kt >= SPARE_START) {
+      const spareKey = kf >= SPARE_START ? kf : kt;
+      const otherKey = kf >= SPARE_START ? kt : kf;
+      return { bucket: 2, primary: spareKey, secondary: otherKey };
+    }
+    if ((kf >= BUILD_START && kf <= BUILD_END) || (kt >= BUILD_START && kt <= BUILD_END)) {
+      return { bucket: 1, primary: Math.min(kf, kt), secondary: 0 };
+    }
+    return { bucket: 0, primary: Math.min(kf, kt), secondary: 0 };
+  }
+
+  // Group steps by cycleId, compute sort key from first step of each cycle
+  const cycleMap = new Map();
+  for (const step of steps) {
+    if (!cycleMap.has(step.cycleId)) {
+      cycleMap.set(step.cycleId, { steps: [], sortKey: cycleSortKey(step) });
+    }
+    cycleMap.get(step.cycleId).steps.push(step);
+  }
+
+  // Sort cycles by bucket, then primary, then secondary
+  const sortedCycles = [...cycleMap.values()].sort((a, b) => {
+    if (a.sortKey.bucket !== b.sortKey.bucket) return a.sortKey.bucket - b.sortKey.bucket;
+    if (a.sortKey.primary !== b.sortKey.primary) return a.sortKey.primary - b.sortKey.primary;
+    return a.sortKey.secondary - b.sortKey.secondary;
+  });
+
+  // Flatten back to step array, preserving intra-cycle order
+  steps.length = 0;
+  for (const cycle of sortedCycles) {
+    for (const step of cycle.steps) {
+      steps.push(step);
+    }
   }
 
   return steps;
