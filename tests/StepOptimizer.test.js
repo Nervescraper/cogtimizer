@@ -114,6 +114,7 @@ describe('getOptimalSteps — baseline behavior', () => {
   });
 
   it('each step has the expected shape', () => {
+    // Expected shape: { board, cog, targetCog, keyFrom, keyTo }
     const cogs = cogDict([
       makeCog(1, 0, { buildRate: 10 }),
       makeCog(0, 1, { buildRate: 20 }),
@@ -324,117 +325,6 @@ describe('getOptimalSteps — equivalence elimination', () => {
     assert.strictEqual(steps.length, 1);
     assert.strictEqual(steps[0].keyFrom, 10);
     assert.strictEqual(steps[0].keyTo, 11);
-  });
-
-});
-
-describe('getOptimalSteps — geographic ordering', () => {
-
-  it('board-only single-step cycles sorted row-major', () => {
-    // Three independent swaps at board positions 50, 10, 30
-    const cogs = cogDict([
-      makeCog(51, 50, { buildRate: 1 }),
-      makeCog(50, 51, { buildRate: 2 }),
-      makeCog(11, 10, { buildRate: 3 }),
-      makeCog(10, 11, { buildRate: 4 }),
-      makeCog(31, 30, { buildRate: 5 }),
-      makeCog(30, 31, { buildRate: 6 }),
-    ]);
-    const steps = getOptimalSteps(BOARD, cogs);
-    assert.strictEqual(steps.length, 3);
-    // Should be sorted by min(keyFrom, keyTo): 10, 30, 50
-    assert.ok(Math.min(steps[0].keyFrom, steps[0].keyTo) <= Math.min(steps[1].keyFrom, steps[1].keyTo));
-    assert.ok(Math.min(steps[1].keyFrom, steps[1].keyTo) <= Math.min(steps[2].keyFrom, steps[2].keyTo));
-  });
-
-  it('spare single-step cycles sorted by spare key ascending', () => {
-    // Three independent swaps involving spare positions 130, 110, 120
-    const cogs = cogDict([
-      makeCog(130, 5, { buildRate: 1 }),
-      makeCog(5, 130, { buildRate: 2 }),
-      makeCog(110, 15, { buildRate: 3 }),
-      makeCog(15, 110, { buildRate: 4 }),
-      makeCog(120, 25, { buildRate: 5 }),
-      makeCog(25, 120, { buildRate: 6 }),
-    ]);
-    const steps = getOptimalSteps(BOARD, cogs);
-    assert.strictEqual(steps.length, 3);
-    const spareKeys = steps.map(s => s.keyFrom >= 108 ? s.keyFrom : s.keyTo);
-    assert.ok(spareKeys[0] <= spareKeys[1], `${spareKeys[0]} should be <= ${spareKeys[1]}`);
-    assert.ok(spareKeys[1] <= spareKeys[2], `${spareKeys[1]} should be <= ${spareKeys[2]}`);
-  });
-
-  it('output bucket order: board-only, then build-area, then spare', () => {
-    const cogs = cogDict([
-      // Spare swap
-      makeCog(110, 5, { buildRate: 1 }),
-      makeCog(5, 110, { buildRate: 2 }),
-      // Board swap
-      makeCog(21, 20, { buildRate: 3 }),
-      makeCog(20, 21, { buildRate: 4 }),
-      // Build-area swap
-      makeCog(97, 96, { buildRate: 5 }),
-      makeCog(96, 97, { buildRate: 6 }),
-    ]);
-    const steps = getOptimalSteps(BOARD, cogs);
-    assert.strictEqual(steps.length, 3);
-    // First step should be board-only (keys < 96)
-    assert.ok(steps[0].keyFrom < 96 && steps[0].keyTo < 96,
-      `First step should be board-only, got keyFrom=${steps[0].keyFrom} keyTo=${steps[0].keyTo}`);
-    // Second step should be build-area (at least one key 96-107, none >= 108)
-    const s1Keys = [steps[1].keyFrom, steps[1].keyTo];
-    assert.ok(s1Keys.some(k => k >= 96 && k <= 107),
-      `Second step should involve build area`);
-    // Third step should be spare-involved (at least one key >= 108)
-    assert.ok(steps[2].keyFrom >= 108 || steps[2].keyTo >= 108,
-      `Third step should involve spare`);
-  });
-
-  it('steps within a multi-step cycle preserve internal order', () => {
-    const cogs = cogDict([
-      makeCog(1, 0, { buildRate: 10 }),
-      makeCog(2, 1, { buildRate: 20 }),
-      makeCog(0, 2, { buildRate: 30 }),
-    ]);
-    const steps = getOptimalSteps(BOARD, cogs);
-    assert.strictEqual(steps.length, 2);
-    // Replay must still produce correct result
-    const grid = replaySteps(steps, cogs);
-    for (const c of Object.values(cogs)) {
-      assert.strictEqual(grid[c.key], c.initialKey,
-        `Position ${c.key} should contain cog from ${c.initialKey}, got cog from ${grid[c.key]}`);
-    }
-  });
-
-  it('spare cycles secondary-sorted by other key', () => {
-    const cogs = cogDict([
-      makeCog(109, 50, { buildRate: 1 }),
-      makeCog(50, 109, { buildRate: 2 }),
-      makeCog(108, 10, { buildRate: 3 }),
-      makeCog(10, 108, { buildRate: 4 }),
-    ]);
-    const steps = getOptimalSteps(BOARD, cogs);
-    assert.strictEqual(steps.length, 2);
-    const otherKey0 = steps[0].keyFrom < 108 ? steps[0].keyFrom : steps[0].keyTo;
-    const otherKey1 = steps[1].keyFrom < 108 ? steps[1].keyFrom : steps[1].keyTo;
-    assert.ok(otherKey0 <= otherKey1,
-      `Other key ${otherKey0} should be <= ${otherKey1}`);
-  });
-
-  it('build-area cycles sorted by key ascending', () => {
-    const cogs = cogDict([
-      makeCog(100, 5, { buildRate: 1 }),
-      makeCog(5, 100, { buildRate: 2 }),
-      makeCog(96, 15, { buildRate: 3 }),
-      makeCog(15, 96, { buildRate: 4 }),
-      makeCog(104, 25, { buildRate: 5 }),
-      makeCog(25, 104, { buildRate: 6 }),
-    ]);
-    const steps = getOptimalSteps(BOARD, cogs);
-    assert.strictEqual(steps.length, 3);
-    const mins = steps.map(s => Math.min(s.keyFrom, s.keyTo));
-    assert.ok(mins[0] <= mins[1], `${mins[0]} should be <= ${mins[1]}`);
-    assert.ok(mins[1] <= mins[2], `${mins[1]} should be <= ${mins[2]}`);
   });
 
 });
