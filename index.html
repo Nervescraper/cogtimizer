@@ -147,6 +147,28 @@
         </div>
       </div>
     </div>
+    <div id="release-notes">
+      <h3 style="font-size:1em; margin:8px 0;">Release Notes</h3>
+      <div id="release-notes-content" style="font-size:0.85em; margin:4px 0; max-width:60em;"></div>
+      <script>
+        fetch('CHANGELOG.md').then(r => r.text()).then(md => {
+          let html = '';
+          let inList = false;
+          for (const line of md.split('\n')) {
+            if (line.startsWith('# ')) continue; // skip top-level heading
+            if (line.startsWith('## ')) {
+              if (inList) { html += '</ul>'; inList = false; }
+              html += '<p style="color:#c8a878; margin:8px 0 4px;"><strong>' + line.slice(3) + '</strong></p>';
+            } else if (line.startsWith('- ')) {
+              if (!inList) { html += '<ul style="margin:0 0 8px; padding-left:20px;">'; inList = true; }
+              html += '<li>' + line.slice(2) + '</li>';
+            }
+          }
+          if (inList) html += '</ul>';
+          document.getElementById('release-notes-content').innerHTML = html;
+        });
+      </script>
+    </div>
     <div id="cog-details" style="display:none;">
       <p style="font-size:0.85em; opacity:0.7; margin:4px 0;">Note: The solver does not currently adjust tiny cogs. Adjust those manually for best results.</p>
       <br/>
@@ -1234,6 +1256,7 @@
     
       function openCogTab() {
         document.getElementById("loader").style.display = "none";
+        document.getElementById("release-notes").style.display = "none";
         document.getElementById("result").style.display = "inherit";
         document.getElementById("cog-details").style.display = "";
         // Move settings back into result if it was in loader
@@ -1246,6 +1269,7 @@
 
       function openLoaderTab() {
         document.getElementById("loader").style.display = "inherit";
+        document.getElementById("release-notes").style.display = "";
         document.getElementById("result").style.display = "none";
         document.getElementById("cog-details").style.display = "none";
         // Move settings into loader if it's open

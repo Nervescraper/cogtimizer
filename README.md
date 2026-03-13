@@ -6,17 +6,13 @@ Automatic cog board optimizer for [Legends of Idleon](https://www.legendsofidleo
 
 ## Usage
 
-1. Paste your Idleon save JSON or enter your username
+1. Paste your Idleon config JSON or enter your username
 2. Click **Load**, then **Solve**
 3. Follow the step-by-step instructions to rearrange your cog board
 
-## Fork changes
+## Release Notes
 
-This fork includes fixes stalled upstream plus:
-
-- **Step optimizer redesign** — replaced cycle-decomposition with selection sort over board positions, fixing empty-slot and inflated step-count bugs
-- **Solver improvements** — simulated annealing, tabu search, and genetic algorithm solvers
-- **Blank slot fix** — step replay now correctly handles cogs displaced by spare/build replacements
+See [CHANGELOG.md](CHANGELOG.md) for full details.
 
 ## Credits
 
