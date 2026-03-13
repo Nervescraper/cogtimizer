@@ -495,3 +495,26 @@ hr {
     top: -1000px;
     opacity: 0;
 }
+
+.tooltip-wrap {
+    position: relative;
+}
+
+.tooltip-text {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 100%;
+    background: #333;
+    color: #fff;
+    padding: 4px 8px;
+    font-size: 0.85em;
+    white-space: normal;
+    width: 20em;
+    z-index: 100;
+    border-radius: 3px;
+}
+
+.tooltip-wrap:hover .tooltip-text {
+    display: block;
+}

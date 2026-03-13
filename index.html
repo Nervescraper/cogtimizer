@@ -128,13 +128,22 @@
             <label for="showSolved">Directly show solved board</label>
             <input type="checkbox" id="showSolved" />
           </p>
+          <p class="tooltip-wrap">
+            <label for="fastMax">Fast maximum calculations?</label>
+            <input type="checkbox" id="fastMax" checked />
+            <span class="tooltip-text">Unchecking this will use the default time/iteration and iteration count shown above.</span>
+          </p>
         </div>
       </div>
     </div>
-    <p id="tiny-cog-note" style="display:none; font-size:0.85em; opacity:0.7; margin:4px 0;">Note: The solver does not currently adjust tiny cogs. Adjust those manually for best results.</p>
-    <p id="start"></p>
-    <div id="balanced-details"></div>
-    <div id="solution-history"></div>
+    <div id="cog-details" style="display:none;">
+      <p style="font-size:0.85em; opacity:0.7; margin:4px 0;">Note: The solver does not currently adjust tiny cogs. Adjust those manually for best results.</p>
+      <br/>
+      <p style="font-size:0.85em; margin:4px 0; color:black; max-width:60em;">Initial theoretical maximums are calculated quickly upon page load, re-run them for better values. Also note these are highly dependent on the cogs you have available, so if you've been trashing all of the Flaggy bonus cogs, don't expect a great "maximum" for Flaggy rate.</p>
+      <p id="start"></p>
+      <div id="balanced-details"></div>
+      <div id="solution-history"></div>
+    </div>
     <script type="text/javascript">
       function createSwitchAnimation() {
         let fromDiv,
@@ -520,6 +529,11 @@
             document.getElementById(oneOption).value = val;
           }
         }
+        // Restore checkbox settings
+        const storedFastMax = localStorage.getItem("fastMax");
+        if (storedFastMax !== null) {
+          document.getElementById("fastMax").checked = storedFastMax === "true";
+        }
         // Sync custom weights visibility with stored preset
         customWeightsDiv.style.display = document.getElementById("weightPreset").value === "custom" ? "" : "none";
 
@@ -544,8 +558,18 @@
         }
 
         openCogTab();
+
+        // Auto-compute theoretical maximums
+        cachedIndividualBests = null;
+        document.getElementById("balanced-details").innerHTML = "";
+        const fastMax = document.getElementById("fastMax").checked;
+        const maxTime = fastMax ? 500 : (getInput("solveTime") || 2500);
+        const maxIter = fastMax ? 2 : (getInput("solveIterations") || 3);
+        findTheoreticalMaximums(maxTime, maxIter, document.getElementById("solvetext")).then(() => {
+          document.getElementById("solvetext").innerText = "Solve";
+        });
       }
-      
+
       function fetchAndLoadConfig(username) {
         console.log("Trying to fetch", username);
         if (username.length > 0) {
@@ -676,6 +700,60 @@
       }
 
 
+      async function findTheoreticalMaximums(solveTime, iterations, statusElem) {
+        const noFlags = cogInvetory.flagPose.length === 0;
+        cachedIndividualBests = {};
+
+        for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
+          const stat = BALANCED_STAT_NAMES[s];
+          const label = BALANCED_STAT_LABELS[s];
+          if (stat === "flaggy" && noFlags) {
+            cachedIndividualBests[stat] = 0;
+            continue;
+          }
+          if (statusElem) {
+            statusElem.innerText = `Finding theoretical max ${label}...`;
+          }
+          await yield();
+          const w = { buildRate: 0, expBonus: 0, flaggy: 0 };
+          w[stat] = 1;
+          solver.setWeights(w.buildRate, w.expBonus, w.flaggy);
+          const result = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
+            if (statusElem) statusElem.innerText = `Finding theoretical max ${label}... (${i + 1}/${n})`;
+          });
+          const prev = cachedIndividualBests[stat] || 0;
+          cachedIndividualBests[stat] = Math.max(prev, result.score[stat]);
+          console.log(`Max ${stat}: ${cachedIndividualBests[stat]}`);
+        }
+
+        // Build/update display
+        const detailsDiv = document.getElementById("balanced-details");
+        detailsDiv.innerHTML = "";
+        for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
+          const stat = BALANCED_STAT_NAMES[s];
+          const label = BALANCED_STAT_LABELS[s];
+          const unit = BALANCED_STAT_UNITS[s];
+          const p = document.createElement("p");
+          if (stat === "flaggy" && noFlags) {
+            p.innerText = `Theoretical Max ${label}: skipped (no flags)`;
+          } else {
+            const displayVal = stat === "expBonus" ? formatXp(cachedIndividualBests[stat]) : mmoifyNumber(cachedIndividualBests[stat], false);
+            p.innerHTML = `Theoretical Max ${label}: <span data-stat="${stat}">${displayVal}${unit}</span> `;
+            const rerunBtn = document.createElement("button");
+            rerunBtn.innerText = "Re-run";
+            rerunBtn.className = "rerun-best-btn";
+            rerunBtn.disabled = solving;
+            rerunBtn.style.cssText = "font-size:0.8em; padding:1px 6px; margin-left:4px; cursor:pointer;";
+            rerunBtn.onclick = () => rerunSingleBest(s);
+            p.appendChild(rerunBtn);
+          }
+          detailsDiv.appendChild(p);
+        }
+
+        recalcBalancedTargets();
+        renderSolutionHistory();
+      }
+
       async function rerunSingleBest(statIndex) {
         if (solving) return;
         setSolving(true);
@@ -687,16 +765,16 @@
           const iterations = getInput("solveIterations") || 3;
           const solveTextElem = document.getElementById("solvetext");
 
-          solveTextElem.innerText = `Re-running best ${label}...`;
+          solveTextElem.innerText = `Re-running theoretical max ${label}...`;
           await yield();
           const w = { buildRate: 0, expBonus: 0, flaggy: 0 };
           w[stat] = 1;
           solver.setWeights(w.buildRate, w.expBonus, w.flaggy);
           const result = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
-            solveTextElem.innerText = `Re-running best ${label}... (${i + 1}/${n})`;
+            solveTextElem.innerText = `Re-running theoretical max ${label}... (${i + 1}/${n})`;
           });
 
-          // Update cached best (keep whichever is higher)
+          // Update cached max (keep whichever is higher)
           if (result.score[stat] > cachedIndividualBests[stat]) {
             cachedIndividualBests[stat] = result.score[stat];
             recalcBalancedTargets();
@@ -820,7 +898,7 @@
           const grpBest = document.createElement("th");
           grpBest.colSpan = 3;
           grpBest.style.cssText = cellStyle + " text-align: center; " + groupBorder;
-          grpBest.textContent = "vs Best";
+          grpBest.textContent = "vs Max";
           groupRow.appendChild(grpBest);
         }
         table.appendChild(groupRow);
@@ -939,6 +1017,7 @@
           localStorage.setItem("buildRate", priorities.buildRate);
           localStorage.setItem("expBonus", priorities.expBonus);
           localStorage.setItem("flaggy", priorities.flaggy);
+          localStorage.setItem("fastMax", document.getElementById("fastMax").checked);
 
           solveTextElem.innerText = "Optimizing...";
           document.getElementById("steps").innerHTML = "";
@@ -948,69 +1027,12 @@
 
           const originalScore = window.originalCogInventory.score;
           document.getElementById("start").innerText = `Starting BuildRate: ${mmoifyNumber(originalScore.buildRate, false)}/HR, EXP: ${formatXp(originalScore.expBonus)}%, Flaggy: ${mmoifyNumber(originalScore.flaggy, false)}/HR`;
-          document.getElementById("tiny-cog-note").style.display = "";
 
           const playerCount = cogInvetory.playerCount || 10;
           const flagCount = Math.max(cogInvetory.flagPose.length, 1);
           let best;
 
           if (preset === "balanced") {
-            if (cachedIndividualBests) {
-              // Re-run: skip phase 1, go straight to balanced solve
-              recalcBalancedTargets();
-            } else {
-              // First run: find individual bests for each stat
-              const noFlags = cogInvetory.flagPose.length === 0;
-
-              for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
-                const stat = BALANCED_STAT_NAMES[s];
-                const label = BALANCED_STAT_LABELS[s];
-                if (stat === "flaggy" && noFlags) {
-                  if (!cachedIndividualBests) cachedIndividualBests = {};
-                  cachedIndividualBests[stat] = cachedIndividualBests[stat] || 0;
-                  continue;
-                }
-                solveTextElem.innerText = `Finding best ${label}...`;
-                await yield();
-                const w = { buildRate: 0, expBonus: 0, flaggy: 0 };
-                w[stat] = 1;
-                solver.setWeights(w.buildRate, w.expBonus, w.flaggy);
-                const result = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
-                  solveTextElem.innerText = `Finding best ${label}... (${i + 1}/${n})`;
-                });
-                if (!cachedIndividualBests) cachedIndividualBests = {};
-                cachedIndividualBests[stat] = result.score[stat];
-                console.log(`Best ${stat}: ${cachedIndividualBests[stat]}`);
-              }
-
-              // Build display for individual bests
-              const detailsDiv = document.getElementById("balanced-details");
-              for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
-                const stat = BALANCED_STAT_NAMES[s];
-                const label = BALANCED_STAT_LABELS[s];
-                const unit = BALANCED_STAT_UNITS[s];
-                const p = document.createElement("p");
-                if (stat === "flaggy" && noFlags) {
-                  p.innerText = `Best ${label}: skipped (no flags)`;
-                } else {
-                  const displayVal = stat === "expBonus" ? formatXp(cachedIndividualBests[stat]) : mmoifyNumber(cachedIndividualBests[stat], false);
-                  p.innerHTML = `Best ${label}: <span data-stat="${stat}">${displayVal}${unit}</span> `;
-                  const rerunBtn = document.createElement("button");
-                  rerunBtn.innerText = "Re-run";
-                  rerunBtn.className = "rerun-best-btn";
-                  rerunBtn.disabled = true;
-                  rerunBtn.style.cssText = "font-size:0.8em; padding:1px 6px; margin-left:4px; cursor:pointer;";
-                  rerunBtn.onclick = () => rerunSingleBest(s);
-                  p.appendChild(rerunBtn);
-                }
-                detailsDiv.appendChild(p);
-              }
-
-              recalcBalancedTargets();
-              console.log("Individual bests:", cachedIndividualBests);
-              console.log("Targets (90%):", cachedBalancedTargets);
-            }
-
             best = await runBalancedPhase2(solveTime, iterations, solveTextElem);
           } else {
             // Standard weighted solve
@@ -1039,6 +1061,7 @@
       function openCogTab() {
         document.getElementById("loader").style.display = "none";
         document.getElementById("result").style.display = "inherit";
+        document.getElementById("cog-details").style.display = "";
 
         document.getElementById("loaderbtn").className = "";
         document.getElementById("cogbtn").className = "active";
@@ -1047,6 +1070,7 @@
       function openLoaderTab() {
         document.getElementById("loader").style.display = "inherit";
         document.getElementById("result").style.display = "none";
+        document.getElementById("cog-details").style.display = "none";
 
         document.getElementById("loaderbtn").className = "active";
         document.getElementById("cogbtn").className = "";
