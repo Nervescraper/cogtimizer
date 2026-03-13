@@ -16,6 +16,11 @@
     <script type="text/javascript" src="Serializer.js"></script>
     <script type="text/javascript" src="Solver.js"></script>
     <script type="text/javascript" src="StepOptimizer.js"></script>
+    <script type="text/javascript" src="solvers/TabuList.js"></script>
+    <script type="text/javascript" src="solvers/SimulatedAnnealing.js"></script>
+    <script type="text/javascript" src="solvers/TabuSearch.js"></script>
+    <script type="text/javascript" src="solvers/BlockCrossover.js"></script>
+    <script type="text/javascript" src="solvers/GeneticAlgorithm.js"></script>
     <script type="text/javascript" src="BoardRenderer.js"></script>
     <script type="text/javascript" src="PlayerRenderer.js"></script>
     <script type="text/javascript" src="Paginator.js"></script>
@@ -626,22 +631,94 @@
         }
       }
 
-      // Run solver with current weights for the given number of iterations
+      // Run one iteration: spawn 3 parallel workers (SA, Tabu, GA), return best result
+      function runWorkerIteration(serializedInv, solveTime, settings) {
+        var algorithms = ['sa', 'tabu', 'ga'];
+        return new Promise(function(resolve) {
+          var results = [];
+          var finished = 0;
+          var workers = [];
+          var resolved = false;
+
+          function tryResolve() {
+            if (resolved) return;
+            if (finished < algorithms.length) return;
+            resolved = true;
+            if (results.length === 0) {
+              resolve(null);
+              return;
+            }
+            var best = results[0];
+            for (var r = 1; r < results.length; r++) {
+              if (results[r].score > best.score) best = results[r];
+            }
+            console.log('Iteration results:', results.map(function(r) { return r.algorithm + ': ' + r.score; }).join(', '));
+            resolve(best);
+          }
+
+          // Safety timeout: resolve even if workers hang (2x solve time + 5s buffer)
+          setTimeout(function() {
+            if (!resolved) {
+              console.warn('Worker timeout — resolving with partial results');
+              for (var w = 0; w < workers.length; w++) workers[w].terminate();
+              finished = algorithms.length;
+              tryResolve();
+            }
+          }, solveTime * 2 + 5000);
+
+          for (var a = 0; a < algorithms.length; a++) {
+            (function(algoKey) {
+              var worker = new Worker('SolverWorker.js');
+              workers.push(worker);
+              worker.onerror = function(err) {
+                console.error('Worker error (' + algoKey + '):', err.message);
+                finished++;
+                worker.terminate();
+                tryResolve();
+              };
+              worker.onmessage = function(e) {
+                var msg = e.data;
+                if (msg.type === 'error') {
+                  console.error('Algorithm error (' + algoKey + '):', msg.message);
+                  finished++;
+                  worker.terminate();
+                  tryResolve();
+                } else if (msg.type === 'done') {
+                  results.push({ inventory: msg.inventory, score: msg.score, algorithm: msg.algorithm || algoKey });
+                  finished++;
+                  worker.terminate();
+                  tryResolve();
+                }
+              };
+              worker.postMessage({
+                command: 'solve',
+                inventory: serializedInv,
+                algorithm: algoKey,
+                timeLimit: solveTime,
+                settings: settings
+              });
+            })(algorithms[a]);
+          }
+        });
+      }
+
+      // Run solver for the given number of iterations using parallel workers
       async function runSolveIterations(inventory, solveTime, iterations, statusFn) {
-        const playerCount = inventory.playerCount || 10;
-        const flagCount = Math.max(inventory.flagPose.length, 1);
+        const serializedInv = serialize(inventory);
+        const weights = solver.weights;
+        const targets = solver.targets || null;
+        const settings = { weights: weights, targets: targets };
         let best = null;
         let bestScore = -Infinity;
         for (let i = 0; i < iterations; i++) {
           if (statusFn) statusFn(i, iterations);
           await yield();
-          g.best = null;
-          const candidate = await solver.solve(inventory, solveTime);
-          const score = solver.getScoreSum(candidate.score, playerCount, flagCount);
-          console.log(`Iteration ${i + 1}/${iterations}: score ${score}`);
-          if (score > bestScore) {
-            bestScore = score;
-            best = candidate;
+          const result = await runWorkerIteration(serializedInv, solveTime, settings);
+          if (!result) { console.warn(`Iteration ${i + 1}/${iterations}: all workers failed`); continue; }
+          console.log(`Iteration ${i + 1}/${iterations}: best=${result.algorithm} score=${result.score}`);
+          if (result.score > bestScore) {
+            bestScore = result.score;
+            best = deserialize(result.inventory);
           }
         }
         return best;

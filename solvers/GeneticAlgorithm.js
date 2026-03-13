@@ -2,16 +2,16 @@
 
 if (typeof require !== 'undefined') {
   var _crossMod = require('./BlockCrossover.js');
-  var blockCrossover = _crossMod.blockCrossover;
+  blockCrossover = _crossMod.blockCrossover;
   var _rngMod = require('../SeededRng.js');
-  var SeededRng = _rngMod.SeededRng;
+  SeededRng = _rngMod.SeededRng;
   var _cogMod = require('../CogInventory.js');
-  var CogInventory = _cogMod.CogInventory;
-  var Cog = _cogMod.Cog;
+  CogInventory = _cogMod.CogInventory;
+  Cog = _cogMod.Cog;
   var _scorerMod = require('../IncrementalScorer.js');
-  var IncrementalScorer = _scorerMod.IncrementalScorer;
+  IncrementalScorer = _scorerMod.IncrementalScorer;
   var _solverMod = require('../Solver.js');
-  var getScoreSum = _solverMod.getScoreSum;
+  getScoreSum = _solverMod.getScoreSum;
 }
 
 var GA_DEFAULTS = {

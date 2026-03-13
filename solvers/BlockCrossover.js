@@ -14,8 +14,8 @@
 
 if (typeof require !== 'undefined') {
   var _mod = require('../CogInventory.js');
-  var CogInventory = _mod.CogInventory;
-  var Cog = _mod.Cog;
+  CogInventory = _mod.CogInventory;
+  Cog = _mod.Cog;
 }
 
 var INV_COLUMNS = 12;
