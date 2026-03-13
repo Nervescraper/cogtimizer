@@ -812,27 +812,124 @@
         const heading = document.createElement("p");
         heading.innerHTML = "<strong>Solution History</strong>";
         container.appendChild(heading);
+        const cellStyle = "padding: 2px 6px; border: 1px solid black; white-space: nowrap;";
+        const table = document.createElement("table");
+        table.style.cssText = "border-collapse: collapse; font-size: 0.9em;";
+        const orig = window.originalCogInventory.score;
+        const sign = v => v > 0 ? "+" : "";
+        const deltaPct = (val, base) => base !== 0 ? ((val - base) / Math.abs(base) * 100).toFixed(0) : 0;
+        const hasBests = !!cachedIndividualBests;
+
+        const groupBorder = "border-left: 3px solid black;";
+
+        // Group header row
+        const groupRow = document.createElement("tr");
+        const grpEmpty = document.createElement("th");
+        grpEmpty.colSpan = 3;
+        grpEmpty.style.cssText = cellStyle + " border: none;";
+        groupRow.appendChild(grpEmpty);
+        const grpDelta = document.createElement("th");
+        grpDelta.colSpan = 3;
+        grpDelta.style.cssText = cellStyle + " text-align: center; " + groupBorder;
+        grpDelta.textContent = "vs Starting";
+        groupRow.appendChild(grpDelta);
+        if (hasBests) {
+          const grpBest = document.createElement("th");
+          grpBest.colSpan = 3;
+          grpBest.style.cssText = cellStyle + " text-align: center; " + groupBorder;
+          grpBest.textContent = "vs Best";
+          groupRow.appendChild(grpBest);
+        }
+        table.appendChild(groupRow);
+
+        // Column header row
+        const thead = document.createElement("tr");
+        const headers = ["", "#", "Strategy"];
+        const deltaHeaders = ["BR", "XP", "FL"];
+        for (const h of headers) {
+          const th = document.createElement("th");
+          th.style.cssText = cellStyle + " text-align: center;";
+          th.textContent = h;
+          thead.appendChild(th);
+        }
+        for (let j = 0; j < deltaHeaders.length; j++) {
+          const th = document.createElement("th");
+          th.style.cssText = cellStyle + " text-align: center;" + (j === 0 ? " " + groupBorder : "");
+          th.textContent = deltaHeaders[j];
+          thead.appendChild(th);
+        }
+        if (hasBests) {
+          for (let j = 0; j < deltaHeaders.length; j++) {
+            const th = document.createElement("th");
+            th.style.cssText = cellStyle + " text-align: center;" + (j === 0 ? " " + groupBorder : "");
+            th.textContent = deltaHeaders[j];
+            thead.appendChild(th);
+          }
+        }
+        table.appendChild(thead);
+
         for (let i = solutionHistory.length - 1; i >= 0; i--) {
           const entry = solutionHistory[i];
           const s = entry.scores;
-          const row = document.createElement("p");
-          row.style.margin = "2px 0";
+          const tr = document.createElement("tr");
+
+          // Load button
+          const tdBtn = document.createElement("td");
+          tdBtn.style.cssText = cellStyle;
           const loadBtn = document.createElement("button");
           loadBtn.innerText = "Load";
           loadBtn.className = "load-solution-btn";
-          loadBtn.style.cssText = "font-size:0.8em; padding:1px 6px; margin-right:6px; cursor:pointer;";
+          loadBtn.style.cssText = "font-size:0.8em; padding:1px 6px; cursor:pointer;";
           loadBtn.onclick = () => loadSolution(i);
-          row.appendChild(loadBtn);
-          let desc = `#${i + 1} ${entry.label} — BR: ${mmoifyNumber(s.buildRate, false)}/HR, XP: ${formatXp(s.expBonus)}%, FL: ${mmoifyNumber(s.flaggy, false)}/HR`;
-          if (entry.isBalanced && cachedIndividualBests) {
+          tdBtn.appendChild(loadBtn);
+          tr.appendChild(tdBtn);
+
+          // Run number
+          const tdNum = document.createElement("td");
+          tdNum.style.cssText = cellStyle + " text-align: center;";
+          tdNum.textContent = i + 1;
+          tr.appendChild(tdNum);
+
+          // Strategy
+          const tdLabel = document.createElement("td");
+          tdLabel.style.cssText = cellStyle;
+          tdLabel.textContent = entry.label;
+          tr.appendChild(tdLabel);
+
+          // BR / XP / FL delta columns
+          const dBr = deltaPct(s.buildRate, orig.buildRate);
+          const dXp = deltaPct(s.expBonus, orig.expBonus);
+          const dFl = deltaPct(s.flaggy, orig.flaggy);
+          const deltas = [dBr, dXp, dFl];
+          for (let j = 0; j < deltas.length; j++) {
+            const d = deltas[j];
+            const td = document.createElement("td");
+            const bg = d > 10 ? "#c6efce" : d < -10 ? "#ffc7ce" : "";
+            td.style.cssText = cellStyle + ` text-align: right;` + (bg ? ` background-color: ${bg};` : "") + (j === 0 ? " " + groupBorder : "");
+            td.textContent = `${sign(d)}${d}%`;
+            tr.appendChild(td);
+          }
+
+          // % of best columns
+          if (hasBests) {
             const pBr = cachedIndividualBests.buildRate > 0 ? (s.buildRate / cachedIndividualBests.buildRate * 100).toFixed(0) : 100;
             const pXp = cachedIndividualBests.expBonus > 0 ? (s.expBonus / cachedIndividualBests.expBonus * 100).toFixed(0) : 100;
             const pFl = cachedIndividualBests.flaggy > 0 ? (s.flaggy / cachedIndividualBests.flaggy * 100).toFixed(0) : 100;
-            desc += ` (${pBr}%/${pXp}%/${pFl}%)`;
+            const bestBg = p => p >= 95 ? "#c6efce" : p < 85 ? "#ffc7ce" : "";
+            const bests = [pBr, pXp, pFl];
+            for (let j = 0; j < bests.length; j++) {
+              const p = bests[j];
+              const td = document.createElement("td");
+              const bg = bestBg(Number(p));
+              td.style.cssText = cellStyle + " text-align: right;" + (bg ? ` background-color: ${bg};` : "") + (j === 0 ? " " + groupBorder : "");
+              td.textContent = `${p}%`;
+              tr.appendChild(td);
+            }
           }
-          row.appendChild(document.createTextNode(desc));
-          container.appendChild(row);
+
+          table.appendChild(tr);
         }
+        container.appendChild(table);
       }
 
       function loadSolution(index) {
@@ -988,8 +1085,12 @@
             document.getElementById("end").innerText = endText;
           }
 
-          const presetLabels = { longterm: "Long-term", flaggy: "Flaggy Push", balanced: "Balanced", custom: "Custom" };
-          saveSolution(best, presetLabels[preset] || preset, preset === "balanced");
+          const presetLabels = { longterm: "Long-term", flaggy: "Flaggy Push", balanced: "Balanced" };
+          let label = presetLabels[preset] || preset;
+          if (preset === "custom") {
+            label = `Custom (${priorities.buildRate}/${priorities.expBonus}/${priorities.flaggy})`;
+          }
+          saveSolution(best, label, preset === "balanced");
           showResult(best);
 
           solveTextElem.innerText = "Solve";
