@@ -5,12 +5,16 @@
 }
 
 body {
-    max-height: 100vh;
+    overflow-x: hidden;
 }
 
 body > img[style*="hidden"],
 body > canvas[style*="hidden"] {
     position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    overflow: hidden;
 }
 
 .inputarea {
@@ -511,4 +515,82 @@ hr {
 
 .tooltip-wrap:hover .tooltip-text {
     display: block;
+}
+
+#release-notes,
+#cog-details {
+    background: #0f1a2e;
+    color: #c8d6e5;
+    padding: 1em 1.5em;
+    border-top: 3px solid #2a4a7a;
+    font-size: 0.9em;
+    line-height: 1.7;
+}
+
+body {
+    background-color: #0f1a2e;
+}
+
+#release-notes h3,
+#cog-details h3 {
+    color: #e8c876;
+    font-family: 'PressStart';
+    font-size: 0.85em;
+    margin: 0 0 8px;
+    letter-spacing: 0.5px;
+}
+
+#release-notes strong {
+    color: #eaf0f6;
+}
+
+#release-notes .date-header {
+    color: #7aacde;
+    font-size: 0.95em;
+    margin: 12px 0 6px;
+}
+
+#release-notes ul {
+    margin: 0 0 8px;
+    padding-left: 20px;
+}
+
+#release-notes li {
+    margin-bottom: 6px;
+}
+
+#release-notes a {
+    color: #7aacde;
+}
+
+#cog-details p {
+    max-width: 60em;
+}
+
+#cog-details table {
+    color: #c8d6e5;
+}
+
+#cog-details table th,
+#cog-details table td {
+    border-color: #2a4a7a !important;
+}
+
+#cog-details table th {
+    color: #7aacde;
+}
+
+#cog-details strong {
+    color: #eaf0f6;
+}
+
+#cog-details button {
+    background-color: #2a4a7a;
+    color: #c8d6e5;
+    border: 1px solid #3a6aaa;
+    cursor: pointer;
+}
+
+#cog-details button:hover {
+    background-color: #3a6aaa;
 }

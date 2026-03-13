@@ -148,8 +148,8 @@
       </div>
     </div>
     <div id="release-notes">
-      <h3 style="font-size:1em; margin:8px 0;">Release Notes</h3>
-      <div id="release-notes-content" style="font-size:0.9em; margin:4px 0; max-width:60em; line-height:1.6;"></div>
+      <h3>Release Notes</h3>
+      <div id="release-notes-content"></div>
       <script>
         fetch('CHANGELOG.md').then(r => r.text()).then(md => {
           let html = '';
@@ -158,11 +158,11 @@
             if (line.startsWith('# ')) continue;
             if (line.startsWith('## ')) {
               if (inList) { html += '</ul>'; inList = false; }
-              html += '<p style="color:#c8a878; margin:12px 0 4px; font-size:1.05em;"><strong>' + line.slice(3) + '</strong></p>';
+              html += '<p class="date-header"><strong>' + line.slice(3) + '</strong></p>';
             } else if (line.startsWith('- ')) {
-              if (!inList) { html += '<ul style="margin:0 0 8px; padding-left:20px;">'; inList = true; }
+              if (!inList) { html += '<ul>'; inList = true; }
               const text = line.slice(2).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-              html += '<li style="margin-bottom:6px;">' + text + '</li>';
+              html += '<li>' + text + '</li>';
             }
           }
           if (inList) html += '</ul>';
@@ -173,7 +173,7 @@
     <div id="cog-details" style="display:none;">
       <p style="font-size:0.85em; opacity:0.7; margin:4px 0;">Note: The solver does not currently adjust tiny cogs. Adjust those manually for best results.</p>
       <br/>
-      <p style="font-size:0.85em; margin:4px 0; color:black; max-width:60em;">Initial theoretical maximums are calculated quickly upon page load, re-run them for better values. Also note these are highly dependent on the cogs you have available, so if you've been trashing all of the Flaggy bonus cogs, don't expect a great "maximum" for Flaggy rate.</p>
+      <p style="font-size:0.85em; margin:4px 0;">Initial theoretical maximums are calculated quickly upon page load, re-run them for better values. Also note these are highly dependent on the cogs you have available, so if you've been trashing all of the Flaggy bonus cogs, don't expect a great "maximum" for Flaggy rate.</p>
       <p id="start"></p>
       <div id="balanced-details"></div>
       <div id="solution-history"></div>
@@ -1024,7 +1024,7 @@
         const heading = document.createElement("p");
         heading.innerHTML = "<strong>Solution History</strong>";
         container.appendChild(heading);
-        const cellStyle = "padding: 2px 6px; border: 1px solid black; white-space: nowrap;";
+        const cellStyle = "padding: 2px 6px; border: 1px solid #2a4a7a; white-space: nowrap;";
         const table = document.createElement("table");
         table.style.cssText = "border-collapse: collapse; font-size: 0.9em;";
         const orig = window.originalCogInventory.score;
@@ -1032,7 +1032,7 @@
         const deltaPct = (val, base) => base !== 0 ? ((val - base) / Math.abs(base) * 100).toFixed(0) : 0;
         const hasBests = !!cachedIndividualBests;
 
-        const groupBorder = "border-left: 3px solid black;";
+        const groupBorder = "border-left: 3px solid #3a6aaa;";
 
         // Group header row
         const groupRow = document.createElement("tr");
@@ -1144,7 +1144,7 @@
           for (let j = 0; j < deltas.length; j++) {
             const d = deltas[j];
             const td = document.createElement("td");
-            const bg = d > 10 ? "#c6efce" : d < -10 ? "#ffc7ce" : "";
+            const bg = d > 10 ? "#1a3a2a" : d < -10 ? "#3a1a1a" : "";
             td.style.cssText = cellStyle + ` text-align: right;` + (bg ? ` background-color: ${bg};` : "") + (j === 0 ? " " + groupBorder : "");
             td.textContent = `${sign(d)}${d}%`;
             tr.appendChild(td);
@@ -1155,7 +1155,7 @@
             const pBr = cachedIndividualBests.buildRate > 0 ? (s.buildRate / cachedIndividualBests.buildRate * 100).toFixed(0) : 100;
             const pXp = cachedIndividualBests.expBonus > 0 ? (s.expBonus / cachedIndividualBests.expBonus * 100).toFixed(0) : 100;
             const pFl = cachedIndividualBests.flaggy > 0 ? (s.flaggy / cachedIndividualBests.flaggy * 100).toFixed(0) : 100;
-            const bestBg = p => p >= 95 ? "#c6efce" : p < 85 ? "#ffc7ce" : "";
+            const bestBg = p => p >= 95 ? "#1a3a2a" : p < 85 ? "#3a1a1a" : "";
             const bests = [pBr, pXp, pFl];
             for (let j = 0; j < bests.length; j++) {
               const p = bests[j];
