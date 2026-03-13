@@ -135,6 +135,7 @@
     <div id="balanced-details"></div>
     <span id="end"></span>
     <button id="rebalance" style="display:none">Re-balance</button>
+    <div id="solution-history"></div>
     <script type="text/javascript">
       function createSwitchAnimation() {
         let fromDiv,
@@ -423,6 +424,10 @@
       function load(save) {
         cogInvetory.load(save);
         window.originalCogInventory = cogInvetory.clone();
+        if (typeof solutionHistory !== 'undefined') {
+          solutionHistory.length = 0;
+          document.getElementById("solution-history").innerHTML = "";
+        }
         console.log("Loading");
         // Fetch Gem-Shop flaggy upgrades
         document.getElementById("flaggyShop").value = cogInvetory.flaggyShopUpgrades;
@@ -648,7 +653,7 @@
         solving = state;
         document.getElementById("solve").disabled = state;
         document.getElementById("rebalance").disabled = state;
-        for (const btn of document.querySelectorAll(".rerun-best-btn")) {
+        for (const btn of document.querySelectorAll(".rerun-best-btn, .load-solution-btn")) {
           btn.disabled = state;
         }
       }
@@ -765,6 +770,57 @@
         g.best = null;
       }
 
+      // Solution history
+      const solutionHistory = [];
+
+      function saveSolution(inventory, label) {
+        const xpMult = window.originalCogInventory.tinyMultipliers ? window.originalCogInventory.tinyMultipliers.expBonus : 1;
+        const saved = inventory.clone();
+        solutionHistory.push({
+          inventory: saved,
+          label: label,
+          scores: {
+            buildRate: inventory.score.buildRate,
+            expBonus: inventory.score.expBonus,
+            flaggy: inventory.score.flaggy
+          },
+          xpMult: xpMult
+        });
+        renderSolutionHistory();
+      }
+
+      function renderSolutionHistory() {
+        const container = document.getElementById("solution-history");
+        container.innerHTML = "";
+        if (solutionHistory.length === 0) return;
+        const heading = document.createElement("p");
+        heading.innerHTML = "<strong>Solution History</strong>";
+        container.appendChild(heading);
+        for (let i = solutionHistory.length - 1; i >= 0; i--) {
+          const entry = solutionHistory[i];
+          const s = entry.scores;
+          const row = document.createElement("p");
+          row.style.margin = "2px 0";
+          const loadBtn = document.createElement("button");
+          loadBtn.innerText = "Load";
+          loadBtn.className = "load-solution-btn";
+          loadBtn.style.cssText = "font-size:0.8em; padding:1px 6px; margin-right:6px; cursor:pointer;";
+          loadBtn.onclick = () => loadSolution(i);
+          row.appendChild(loadBtn);
+          const text = document.createTextNode(
+            `#${i + 1} ${entry.label} — BR: ${mmoifyNumber(s.buildRate, false)}/HR, XP: ${mmoifyNumber(s.expBonus * entry.xpMult, false)}%, FL: ${mmoifyNumber(s.flaggy, false)}/HR`
+          );
+          row.appendChild(text);
+          container.appendChild(row);
+        }
+      }
+
+      function loadSolution(index) {
+        if (solving) return;
+        const entry = solutionHistory[index];
+        showResult(entry.inventory);
+      }
+
       function updateRebalanceButton() {
         const btn = document.getElementById("rebalance");
         btn.style.display = cachedBalancedTargets ? "" : "none";
@@ -783,6 +839,7 @@
           await yield();
 
           const best = await runBalancedPhase2(solveTime, iterations, solveTextElem);
+          saveSolution(best, "Re-balance");
           showResult(best);
 
           solveTextElem.innerText = "Solve";
@@ -888,6 +945,8 @@
             document.getElementById("end").innerText = `Final BuildRate: ${mmoifyNumber(best.score.buildRate, false)}/HR, EXP: ${mmoifyNumber(best.score.expBonus, false)}%, Flaggy: ${mmoifyNumber(best.score.flaggy, false)}/HR`;
           }
 
+          const presetLabels = { longterm: "Long-term", flaggy: "Flaggy Push", balanced: "Balanced", custom: "Custom" };
+          saveSolution(best, presetLabels[preset] || preset);
           showResult(best);
 
           solveTextElem.innerText = "Solve";
