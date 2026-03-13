@@ -905,6 +905,29 @@
       // Solution history
       const solutionHistory = [];
 
+      function updateCachedBests(score) {
+        if (!cachedIndividualBests || Object.keys(cachedIndividualBests).length === 0) return false;
+        let changed = false;
+        for (const stat of BALANCED_STAT_NAMES) {
+          if (score[stat] > (cachedIndividualBests[stat] || 0)) {
+            cachedIndividualBests[stat] = score[stat];
+            changed = true;
+            console.log(`Updated max ${stat}: ${cachedIndividualBests[stat]}`);
+            // Update the display span if it exists
+            const span = document.querySelector(`#balanced-details span[data-stat="${stat}"]`);
+            if (span) {
+              const unit = BALANCED_STAT_UNITS[BALANCED_STAT_NAMES.indexOf(stat)];
+              const displayVal = stat === "expBonus" ? formatXp(cachedIndividualBests[stat]) : mmoifyNumber(cachedIndividualBests[stat], false);
+              span.textContent = `${displayVal}${unit}`;
+            }
+          }
+        }
+        if (changed) {
+          recalcBalancedTargets();
+        }
+        return changed;
+      }
+
       function saveSolution(inventory, label, isBalanced = false) {
         const saved = inventory.clone();
         solutionHistory.push({
@@ -917,6 +940,7 @@
           },
           isBalanced: isBalanced
         });
+        updateCachedBests(inventory.score);
         renderSolutionHistory();
       }
 
