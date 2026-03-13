@@ -714,6 +714,7 @@
 
           // Update balanced percentages against new bests
           updateBalancedEndLine();
+          renderSolutionHistory();
 
           solveTextElem.innerText = "Solve";
         } finally {
@@ -773,7 +774,7 @@
       // Solution history
       const solutionHistory = [];
 
-      function saveSolution(inventory, label) {
+      function saveSolution(inventory, label, isBalanced = false) {
         const xpMult = window.originalCogInventory.tinyMultipliers ? window.originalCogInventory.tinyMultipliers.expBonus : 1;
         const saved = inventory.clone();
         solutionHistory.push({
@@ -784,7 +785,8 @@
             expBonus: inventory.score.expBonus,
             flaggy: inventory.score.flaggy
           },
-          xpMult: xpMult
+          xpMult: xpMult,
+          isBalanced: isBalanced
         });
         renderSolutionHistory();
       }
@@ -807,10 +809,14 @@
           loadBtn.style.cssText = "font-size:0.8em; padding:1px 6px; margin-right:6px; cursor:pointer;";
           loadBtn.onclick = () => loadSolution(i);
           row.appendChild(loadBtn);
-          const text = document.createTextNode(
-            `#${i + 1} ${entry.label} — BR: ${mmoifyNumber(s.buildRate, false)}/HR, XP: ${mmoifyNumber(s.expBonus * entry.xpMult, false)}%, FL: ${mmoifyNumber(s.flaggy, false)}/HR`
-          );
-          row.appendChild(text);
+          let desc = `#${i + 1} ${entry.label} — BR: ${mmoifyNumber(s.buildRate, false)}/HR, XP: ${mmoifyNumber(s.expBonus * entry.xpMult, false)}%, FL: ${mmoifyNumber(s.flaggy, false)}/HR`;
+          if (entry.isBalanced && cachedIndividualBests) {
+            const pBr = cachedIndividualBests.buildRate > 0 ? (s.buildRate / cachedIndividualBests.buildRate * 100).toFixed(0) : 100;
+            const pXp = cachedIndividualBests.expBonus > 0 ? (s.expBonus / cachedIndividualBests.expBonus * 100).toFixed(0) : 100;
+            const pFl = cachedIndividualBests.flaggy > 0 ? (s.flaggy / cachedIndividualBests.flaggy * 100).toFixed(0) : 100;
+            desc += ` (${pBr}%/${pXp}%/${pFl}%)`;
+          }
+          row.appendChild(document.createTextNode(desc));
           container.appendChild(row);
         }
       }
@@ -839,7 +845,7 @@
           await yield();
 
           const best = await runBalancedPhase2(solveTime, iterations, solveTextElem);
-          saveSolution(best, "Re-balance");
+          saveSolution(best, "Re-balance", true);
           showResult(best);
 
           solveTextElem.innerText = "Solve";
@@ -942,7 +948,7 @@
           }
 
           const presetLabels = { longterm: "Long-term", flaggy: "Flaggy Push", balanced: "Balanced", custom: "Custom" };
-          saveSolution(best, presetLabels[preset] || preset);
+          saveSolution(best, presetLabels[preset] || preset, preset === "balanced");
           showResult(best);
 
           solveTextElem.innerText = "Solve";
