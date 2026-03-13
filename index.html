@@ -134,8 +134,6 @@
     <p id="tiny-cog-note" style="display:none; font-size:0.85em; opacity:0.7; margin:4px 0;">Note: The solver does not currently adjust tiny cogs. Adjust those manually for best results.</p>
     <p id="start"></p>
     <div id="balanced-details"></div>
-    <span id="end"></span>
-    <button id="rebalance" style="display:none">Re-balance</button>
     <div id="solution-history"></div>
     <script type="text/javascript">
       function createSwitchAnimation() {
@@ -651,7 +649,6 @@
       // Cached balanced state for re-balancing
       let cachedBalancedTargets = null;
       let cachedIndividualBests = null;
-      let lastBalancedResult = null;
       const BALANCED_STAT_NAMES = ["buildRate", "expBonus", "flaggy"];
       const BALANCED_STAT_LABELS = ["Build Rate", "XP Bonus", "Flaggy"];
       const BALANCED_STAT_UNITS = ["/HR", "%", "/HR"];
@@ -661,7 +658,6 @@
       function setSolving(state) {
         solving = state;
         document.getElementById("solve").disabled = state;
-        document.getElementById("rebalance").disabled = state;
         for (const btn of document.querySelectorAll(".rerun-best-btn, .load-solution-btn")) {
           btn.disabled = state;
         }
@@ -679,14 +675,6 @@
         };
       }
 
-      function updateBalancedEndLine() {
-        if (!lastBalancedResult || !cachedIndividualBests) return;
-        const best = lastBalancedResult;
-        const pctBr = cachedIndividualBests.buildRate > 0 ? (best.score.buildRate / cachedIndividualBests.buildRate * 100).toFixed(0) : 100;
-        const pctXp = cachedIndividualBests.expBonus > 0 ? (best.score.expBonus / cachedIndividualBests.expBonus * 100).toFixed(0) : 100;
-        const pctFl = cachedIndividualBests.flaggy > 0 ? (best.score.flaggy / cachedIndividualBests.flaggy * 100).toFixed(0) : 100;
-        document.getElementById("end").innerText = `Balanced: ${mmoifyNumber(best.score.buildRate, false)}/HR (${pctBr}%), ${formatXp(best.score.expBonus)}% (${pctXp}%), ${mmoifyNumber(best.score.flaggy, false)}/HR (${pctFl}%)`;
-      }
 
       async function rerunSingleBest(statIndex) {
         if (solving) return;
@@ -722,8 +710,6 @@
             spans[0].innerText = `${rerunVal}${unit}`;
           }
 
-          // Update balanced percentages against new bests
-          updateBalancedEndLine();
           renderSolutionHistory();
 
           solveTextElem.innerText = "Solve";
@@ -736,7 +722,6 @@
         const targets = cachedBalancedTargets;
 
         solveTextElem.innerText = "Finding balanced solution...";
-        document.getElementById("end").innerText = "";
         await yield();
         solver.setWeights(1, 1, 1);
         solver.setTargets(targets);
@@ -745,8 +730,6 @@
         });
         solver.setTargets(null);
 
-        lastBalancedResult = best;
-        updateBalancedEndLine();
         return best;
       }
 
@@ -938,33 +921,6 @@
         showResult(entry.inventory);
       }
 
-      function updateRebalanceButton() {
-        const btn = document.getElementById("rebalance");
-        btn.style.display = cachedBalancedTargets ? "" : "none";
-      }
-
-      document.getElementById("rebalance").onclick = async () => {
-        if (solving) return;
-        setSolving(true);
-        try {
-          const solveTime = getInput("solveTime") || 2500;
-          const iterations = getInput("solveIterations") || 3;
-          const solveTextElem = document.getElementById("solvetext");
-
-          solveTextElem.innerText = "Re-balancing...";
-          document.getElementById("steps").innerHTML = "";
-          await yield();
-
-          const best = await runBalancedPhase2(solveTime, iterations, solveTextElem);
-          saveSolution(best, "Re-balance", true);
-          showResult(best);
-
-          solveTextElem.innerText = "Solve";
-          openCogTab();
-        } finally {
-          setSolving(false);
-        }
-      };
 
       document.getElementById("solve").onclick = async () => {
         if (solving) return;
@@ -998,37 +954,37 @@
           const flagCount = Math.max(cogInvetory.flagPose.length, 1);
           let best;
 
-          document.getElementById("end").innerText = "";
-
           if (preset === "balanced") {
-            // Phase 1: Find individual bests for each stat (keep higher of new vs cached)
-            const noFlags = cogInvetory.flagPose.length === 0;
+            if (cachedIndividualBests) {
+              // Re-run: skip phase 1, go straight to balanced solve
+              recalcBalancedTargets();
+            } else {
+              // First run: find individual bests for each stat
+              const noFlags = cogInvetory.flagPose.length === 0;
 
-            for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
-              const stat = BALANCED_STAT_NAMES[s];
-              const label = BALANCED_STAT_LABELS[s];
-              if (stat === "flaggy" && noFlags) {
+              for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
+                const stat = BALANCED_STAT_NAMES[s];
+                const label = BALANCED_STAT_LABELS[s];
+                if (stat === "flaggy" && noFlags) {
+                  if (!cachedIndividualBests) cachedIndividualBests = {};
+                  cachedIndividualBests[stat] = cachedIndividualBests[stat] || 0;
+                  continue;
+                }
+                solveTextElem.innerText = `Finding best ${label}...`;
+                await yield();
+                const w = { buildRate: 0, expBonus: 0, flaggy: 0 };
+                w[stat] = 1;
+                solver.setWeights(w.buildRate, w.expBonus, w.flaggy);
+                const result = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
+                  solveTextElem.innerText = `Finding best ${label}... (${i + 1}/${n})`;
+                });
                 if (!cachedIndividualBests) cachedIndividualBests = {};
-                cachedIndividualBests[stat] = cachedIndividualBests[stat] || 0;
-                continue;
+                cachedIndividualBests[stat] = result.score[stat];
+                console.log(`Best ${stat}: ${cachedIndividualBests[stat]}`);
               }
-              solveTextElem.innerText = `Finding best ${label}...`;
-              await yield();
-              const w = { buildRate: 0, expBonus: 0, flaggy: 0 };
-              w[stat] = 1;
-              solver.setWeights(w.buildRate, w.expBonus, w.flaggy);
-              const result = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
-                solveTextElem.innerText = `Finding best ${label}... (${i + 1}/${n})`;
-              });
-              if (!cachedIndividualBests) cachedIndividualBests = {};
-              const prev = cachedIndividualBests[stat] || 0;
-              cachedIndividualBests[stat] = Math.max(prev, result.score[stat]);
-              console.log(`Best ${stat}: ${cachedIndividualBests[stat]}${result.score[stat] < prev ? " (kept previous)" : ""}`);
-            }
 
-            // Update display values (build div on first run, update spans on re-run)
-            const detailsDiv = document.getElementById("balanced-details");
-            if (detailsDiv.children.length === 0) {
+              // Build display for individual bests
+              const detailsDiv = document.getElementById("balanced-details");
               for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
                 const stat = BALANCED_STAT_NAMES[s];
                 const label = BALANCED_STAT_LABELS[s];
@@ -1049,40 +1005,20 @@
                 }
                 detailsDiv.appendChild(p);
               }
-            } else {
-              // Just update the span values
-              for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
-                const stat = BALANCED_STAT_NAMES[s];
-                const unit = BALANCED_STAT_UNITS[s];
-                const span = detailsDiv.querySelector(`span[data-stat="${stat}"]`);
-                if (span) {
-                  const displayVal = stat === "expBonus" ? formatXp(cachedIndividualBests[stat]) : mmoifyNumber(cachedIndividualBests[stat], false);
-                  span.textContent = `${displayVal}${unit}`;
-                }
-              }
+
+              recalcBalancedTargets();
+              console.log("Individual bests:", cachedIndividualBests);
+              console.log("Targets (90%):", cachedBalancedTargets);
             }
 
-            recalcBalancedTargets();
-            console.log("Individual bests:", cachedIndividualBests);
-            console.log("Targets (90%):", cachedBalancedTargets);
-
             best = await runBalancedPhase2(solveTime, iterations, solveTextElem);
-            updateRebalanceButton();
           } else {
-            // Standard weighted solve — keep cached bests so user can switch back to Balanced
+            // Standard weighted solve
             const weights = prioritiesToWeights(priorities, originalScore, playerCount, flagCount);
             solver.setWeights(weights.buildRate, weights.expBonus, weights.flaggy);
             best = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
               solveTextElem.innerText = `Optimizing... (${i + 1}/${n})`;
             });
-            let endText = `Final BuildRate: ${mmoifyNumber(best.score.buildRate, false)}/HR, EXP: ${formatXp(best.score.expBonus)}%, Flaggy: ${mmoifyNumber(best.score.flaggy, false)}/HR`;
-            if (cachedIndividualBests) {
-              const pctBr = cachedIndividualBests.buildRate > 0 ? (best.score.buildRate / cachedIndividualBests.buildRate * 100).toFixed(0) : 100;
-              const pctXp = cachedIndividualBests.expBonus > 0 ? (best.score.expBonus / cachedIndividualBests.expBonus * 100).toFixed(0) : 100;
-              const pctFl = cachedIndividualBests.flaggy > 0 ? (best.score.flaggy / cachedIndividualBests.flaggy * 100).toFixed(0) : 100;
-              endText += ` (${pctBr}%/${pctXp}%/${pctFl}% of best)`;
-            }
-            document.getElementById("end").innerText = endText;
           }
 
           const presetLabels = { longterm: "Long-term", flaggy: "Flaggy Push", balanced: "Balanced" };
