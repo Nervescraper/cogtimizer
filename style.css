@@ -405,12 +405,6 @@ hr {
     background-image: -webkit-linear-gradient(top, #ffa18d 0%, #ffa18d 51%, #ff7567 51%);
 }
 
-@media (prefers-color-scheme: dark) {
-    body {
-        color: #eee;
-        background: #121212;
-    }
-}
 
 .crow {
     display: inline-block;
