@@ -8,6 +8,11 @@ body {
     max-height: 100vh;
 }
 
+body > img[style*="hidden"],
+body > canvas[style*="hidden"] {
+    position: absolute;
+}
+
 .inputarea {
     display: flex;
     flex-direction: column;
@@ -104,6 +109,11 @@ body {
 
 #solve {
     background-color: #486c13;
+}
+
+#solve:disabled {
+    background-color: #486c13;
+    color: inherit;
 }
 
 #solve:not(:disabled):hover {

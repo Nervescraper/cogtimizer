@@ -133,7 +133,8 @@
     </div>
     <p id="start"></p>
     <div id="balanced-details"></div>
-    <p id="end"></p>
+    <span id="end"></span>
+    <button id="rebalance" style="display:none">Re-balance</button>
     <script type="text/javascript">
       function createSwitchAnimation() {
         let fromDiv,
@@ -633,107 +634,108 @@
         return best;
       }
 
-      document.getElementById("solve").onclick = async () => {
-        const solveTime = getInput("solveTime") || 2500;
-        const iterations = getInput("solveIterations") || 3;
-        const solveTextElem = document.getElementById("solvetext");
-        const preset = document.getElementById("weightPreset").value;
+      // Cached balanced state for re-balancing
+      let cachedBalancedTargets = null;
+      let cachedIndividualBests = null;
+      let lastBalancedResult = null;
+      const BALANCED_STAT_NAMES = ["buildRate", "expBonus", "flaggy"];
+      const BALANCED_STAT_LABELS = ["Build Rate", "XP Bonus", "Flaggy"];
+      const BALANCED_STAT_UNITS = ["/HR", "%", "/HR"];
+      const TARGET_PCT = 0.9;
 
-        // Save settings
-        const priorities = getWeightPriorities();
-        localStorage.setItem("solveTime", solveTime);
-        localStorage.setItem("solveIterations", iterations);
-        localStorage.setItem("weightPreset", preset);
-        localStorage.setItem("buildRate", priorities.buildRate);
-        localStorage.setItem("expBonus", priorities.expBonus);
-        localStorage.setItem("flaggy", priorities.flaggy);
+      let solving = false;
+      function setSolving(state) {
+        solving = state;
+        document.getElementById("solve").disabled = state;
+        document.getElementById("rebalance").disabled = state;
+        for (const btn of document.querySelectorAll(".rerun-best-btn")) {
+          btn.disabled = state;
+        }
+      }
 
-        solveTextElem.innerText = "Optimizing...";
-        document.getElementById("steps").innerHTML = "";
-        await yield(); // Yield for DOM-Refresh
+      function recalcBalancedTargets() {
+        const start = window.originalCogInventory;
+        const playerCount = start.playerCount || 10;
+        const flagCount = Math.max(start.flagPose.length, 1);
+        const noFlags = start.flagPose.length === 0;
+        cachedBalancedTargets = {
+          buildRate: cachedIndividualBests.buildRate * TARGET_PCT,
+          expBonus: cachedIndividualBests.expBonus * TARGET_PCT * (start.score.expBoost + playerCount) / playerCount,
+          flaggy: (noFlags ? 0 : cachedIndividualBests.flaggy * TARGET_PCT) * (start.score.flagBoost + flagCount) / flagCount
+        };
+      }
 
-        console.log("Starting");
+      function updateBalancedEndLine() {
+        if (!lastBalancedResult || !cachedIndividualBests) return;
+        const best = lastBalancedResult;
+        const pctBr = cachedIndividualBests.buildRate > 0 ? (best.score.buildRate / cachedIndividualBests.buildRate * 100).toFixed(0) : 100;
+        const pctXp = cachedIndividualBests.expBonus > 0 ? (best.score.expBonus / cachedIndividualBests.expBonus * 100).toFixed(0) : 100;
+        const pctFl = cachedIndividualBests.flaggy > 0 ? (best.score.flaggy / cachedIndividualBests.flaggy * 100).toFixed(0) : 100;
+        document.getElementById("end").innerText = `Balanced: ${mmoifyNumber(best.score.buildRate, false)}/HR (${pctBr}%), ${mmoifyNumber(best.score.expBonus, false)}% (${pctXp}%), ${mmoifyNumber(best.score.flaggy, false)}/HR (${pctFl}%)`;
+      }
 
-        let start = cogInvetory.clone();
-        const originalScore = window.originalCogInventory.score;
-        document.getElementById("start").innerText = `Starting BuildRate: ${mmoifyNumber(originalScore.buildRate, false)}/HR, EXP: ${mmoifyNumber(originalScore.expBonus, false)}%, Flaggy: ${mmoifyNumber(originalScore.flaggy, false)}/HR`;
+      async function rerunSingleBest(statIndex) {
+        if (solving) return;
+        setSolving(true);
+        try {
+          const stat = BALANCED_STAT_NAMES[statIndex];
+          const label = BALANCED_STAT_LABELS[statIndex];
+          const unit = BALANCED_STAT_UNITS[statIndex];
+          const solveTime = getInput("solveTime") || 2500;
+          const iterations = getInput("solveIterations") || 3;
+          const solveTextElem = document.getElementById("solvetext");
 
-        const playerCount = cogInvetory.playerCount || 10;
-        const flagCount = Math.max(cogInvetory.flagPose.length, 1);
-        let best;
+          solveTextElem.innerText = `Re-running best ${label}...`;
+          await yield();
+          const w = { buildRate: 0, expBonus: 0, flaggy: 0 };
+          w[stat] = 1;
+          solver.setWeights(w.buildRate, w.expBonus, w.flaggy);
+          const result = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
+            solveTextElem.innerText = `Re-running best ${label}... (${i + 1}/${n})`;
+          });
 
-        document.getElementById("balanced-details").innerHTML = "";
-        document.getElementById("end").innerText = "";
-
-        if (preset === "balanced") {
-          // Phase 1: Find individual bests for each stat
-          const statNames = ["buildRate", "expBonus", "flaggy"];
-          const statLabels = ["Build Rate", "XP Bonus", "Flaggy"];
-          const statUnits = ["/HR", "%", "/HR"];
-          const individualBests = {};
-          const noFlags = cogInvetory.flagPose.length === 0;
-          const detailsDiv = document.getElementById("balanced-details");
-
-          for (let s = 0; s < statNames.length; s++) {
-            const stat = statNames[s];
-            if (stat === "flaggy" && noFlags) {
-              individualBests[stat] = 0;
-              const p = document.createElement("p");
-              p.innerText = `Best ${statLabels[s]}: skipped (no flags)`;
-              detailsDiv.appendChild(p);
-              continue;
-            }
-            solveTextElem.innerText = `Finding best ${statLabels[s]}...`;
-            await yield();
-            // Use raw weights (not normalized) so the solver's temperature scaling works
-            const w = { buildRate: 0, expBonus: 0, flaggy: 0 };
-            w[stat] = 1;
-            solver.setWeights(w.buildRate, w.expBonus, w.flaggy);
-            const result = await runSolveIterations(cogInvetory, solveTime, iterations, (i, n) => {
-              solveTextElem.innerText = `Finding best ${statLabels[s]}... (${i + 1}/${n})`;
-            });
-            individualBests[stat] = result.score[stat];
-            console.log(`Best ${stat}: ${individualBests[stat]}`);
-            const p = document.createElement("p");
-            p.innerText = `Best ${statLabels[s]}: ${mmoifyNumber(individualBests[stat], false)}${statUnits[s]}`;
-            detailsDiv.appendChild(p);
+          // Update cached best (keep whichever is higher)
+          if (result.score[stat] > cachedIndividualBests[stat]) {
+            cachedIndividualBests[stat] = result.score[stat];
+            recalcBalancedTargets();
           }
 
-          // Phase 2: Solve with targets at 90% of individual bests
-          const TARGET_PCT = 0.9;
-          const targets = {
-            buildRate: individualBests.buildRate * TARGET_PCT,
-            expBonus: individualBests.expBonus * TARGET_PCT * (start.score.expBoost + playerCount) / playerCount,
-            flaggy: (noFlags ? 0 : individualBests.flaggy * TARGET_PCT) * (start.score.flagBoost + flagCount) / flagCount
-          };
-          console.log("Individual bests:", individualBests);
-          console.log("Targets (90%):", targets);
+          // Update the display text for this stat
+          const detailsDiv = document.getElementById("balanced-details");
+          const spans = detailsDiv.querySelectorAll(`[data-stat="${stat}"]`);
+          if (spans.length) {
+            spans[0].innerText = `${mmoifyNumber(cachedIndividualBests[stat], false)}${unit}`;
+          }
 
-          solveTextElem.innerText = "Finding balanced solution...";
-          await yield();
-          solver.setWeights(1, 1, 1);
-          solver.setTargets(targets);
-          best = await runSolveIterations(cogInvetory, solveTime, iterations, (i, n) => {
-            solveTextElem.innerText = `Finding balanced solution... (${i + 1}/${n})`;
-          });
-          solver.setTargets(null);
+          // Update balanced percentages against new bests
+          updateBalancedEndLine();
 
-          // Report threshold hits
-          const pctBr = individualBests.buildRate > 0 ? (best.score.buildRate / individualBests.buildRate * 100).toFixed(0) : 100;
-          const pctXp = individualBests.expBonus > 0 ? (best.score.expBonus / individualBests.expBonus * 100).toFixed(0) : 100;
-          const pctFl = individualBests.flaggy > 0 ? (best.score.flaggy / individualBests.flaggy * 100).toFixed(0) : 100;
-          console.log(`Balanced result: BR ${pctBr}%, XP ${pctXp}%, FL ${pctFl}% of individual bests`);
-          document.getElementById("end").innerText = `Balanced: ${mmoifyNumber(best.score.buildRate, false)}/HR (${pctBr}%), ${mmoifyNumber(best.score.expBonus, false)}% (${pctXp}%), ${mmoifyNumber(best.score.flaggy, false)}/HR (${pctFl}%)`;
-        } else {
-          // Standard weighted solve
-          const weights = prioritiesToWeights(priorities, start.score, playerCount, flagCount);
-          solver.setWeights(weights.buildRate, weights.expBonus, weights.flaggy);
-          best = await runSolveIterations(cogInvetory, solveTime, iterations, (i, n) => {
-            solveTextElem.innerText = `Optimizing... (${i + 1}/${n})`;
-          });
-          document.getElementById("end").innerText = `Final BuildRate: ${mmoifyNumber(best.score.buildRate, false)}/HR, EXP: ${mmoifyNumber(best.score.expBonus, false)}%, Flaggy: ${mmoifyNumber(best.score.flaggy, false)}/HR`;
+          solveTextElem.innerText = "Solve";
+        } finally {
+          setSolving(false);
         }
+      }
 
+      async function runBalancedPhase2(solveTime, iterations, solveTextElem) {
+        const targets = cachedBalancedTargets;
+
+        solveTextElem.innerText = "Finding balanced solution...";
+        document.getElementById("end").innerText = "";
+        await yield();
+        solver.setWeights(1, 1, 1);
+        solver.setTargets(targets);
+        const best = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
+          solveTextElem.innerText = `Finding balanced solution... (${i + 1}/${n})`;
+        });
+        solver.setTargets(null);
+
+        lastBalancedResult = best;
+        updateBalancedEndLine();
+        return best;
+      }
+
+      function showResult(best) {
+        const originalScore = window.originalCogInventory.score;
         const xpMult = cogInvetory.tinyMultipliers ? cogInvetory.tinyMultipliers.expBonus : 1;
         const brDelta = best.score.buildRate - originalScore.buildRate;
         const xpDelta = (best.score.expBonus - originalScore.expBonus) * xpMult;
@@ -748,11 +750,10 @@
         optimalSteps = f.getOptimalSteps(best.board, best.cogs);
         f.printOptimalSteps(optimalSteps);
         if (document.getElementById("showSolved").checked) {
-          // Show solved board
           f.printBoard(best.board);
           stepsPage.reset(optimalSteps.length, optimalSteps.length - 1);
         } else {
-          f.printBoard(start.board);
+          f.printBoard(window.originalCogInventory.board);
           stepsPage.reset(optimalSteps.length, 0);
         }
 
@@ -762,9 +763,138 @@
           cog.initialKey = cog.key;
         }
         g.best = null;
+      }
 
-        solveTextElem.innerText = "Solve";
-        openCogTab();
+      function updateRebalanceButton() {
+        const btn = document.getElementById("rebalance");
+        btn.style.display = cachedBalancedTargets ? "" : "none";
+      }
+
+      document.getElementById("rebalance").onclick = async () => {
+        if (solving) return;
+        setSolving(true);
+        try {
+          const solveTime = getInput("solveTime") || 2500;
+          const iterations = getInput("solveIterations") || 3;
+          const solveTextElem = document.getElementById("solvetext");
+
+          solveTextElem.innerText = "Re-balancing...";
+          document.getElementById("steps").innerHTML = "";
+          await yield();
+
+          const best = await runBalancedPhase2(solveTime, iterations, solveTextElem);
+          showResult(best);
+
+          solveTextElem.innerText = "Solve";
+          openCogTab();
+        } finally {
+          setSolving(false);
+        }
+      };
+
+      document.getElementById("solve").onclick = async () => {
+        if (solving) return;
+        setSolving(true);
+        try {
+          const solveTime = getInput("solveTime") || 2500;
+          const iterations = getInput("solveIterations") || 3;
+          const solveTextElem = document.getElementById("solvetext");
+          const preset = document.getElementById("weightPreset").value;
+
+          // Save settings
+          const priorities = getWeightPriorities();
+          localStorage.setItem("solveTime", solveTime);
+          localStorage.setItem("solveIterations", iterations);
+          localStorage.setItem("weightPreset", preset);
+          localStorage.setItem("buildRate", priorities.buildRate);
+          localStorage.setItem("expBonus", priorities.expBonus);
+          localStorage.setItem("flaggy", priorities.flaggy);
+
+          solveTextElem.innerText = "Optimizing...";
+          document.getElementById("steps").innerHTML = "";
+          await yield(); // Yield for DOM-Refresh
+
+          console.log("Starting");
+
+          const originalScore = window.originalCogInventory.score;
+          document.getElementById("start").innerText = `Starting BuildRate: ${mmoifyNumber(originalScore.buildRate, false)}/HR, EXP: ${mmoifyNumber(originalScore.expBonus, false)}%, Flaggy: ${mmoifyNumber(originalScore.flaggy, false)}/HR`;
+
+          const playerCount = cogInvetory.playerCount || 10;
+          const flagCount = Math.max(cogInvetory.flagPose.length, 1);
+          let best;
+
+          document.getElementById("balanced-details").innerHTML = "";
+          document.getElementById("end").innerText = "";
+
+          if (preset === "balanced") {
+            // Phase 1: Find individual bests for each stat
+            const individualBests = {};
+            const noFlags = cogInvetory.flagPose.length === 0;
+            const detailsDiv = document.getElementById("balanced-details");
+
+            for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
+              const stat = BALANCED_STAT_NAMES[s];
+              const label = BALANCED_STAT_LABELS[s];
+              const unit = BALANCED_STAT_UNITS[s];
+              if (stat === "flaggy" && noFlags) {
+                individualBests[stat] = 0;
+                const p = document.createElement("p");
+                p.innerText = `Best ${label}: skipped (no flags)`;
+                detailsDiv.appendChild(p);
+                continue;
+              }
+              solveTextElem.innerText = `Finding best ${label}...`;
+              await yield();
+              // Use raw weights (not normalized) so the solver's temperature scaling works
+              const w = { buildRate: 0, expBonus: 0, flaggy: 0 };
+              w[stat] = 1;
+              solver.setWeights(w.buildRate, w.expBonus, w.flaggy);
+              const result = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
+                solveTextElem.innerText = `Finding best ${label}... (${i + 1}/${n})`;
+              });
+              individualBests[stat] = result.score[stat];
+              console.log(`Best ${stat}: ${individualBests[stat]}`);
+              const p = document.createElement("p");
+              p.innerHTML = `Best ${label}: <span data-stat="${stat}">${mmoifyNumber(individualBests[stat], false)}${unit}</span> `;
+              const rerunBtn = document.createElement("button");
+              rerunBtn.innerText = "Re-run";
+              rerunBtn.className = "rerun-best-btn";
+              rerunBtn.disabled = true; // Disabled until full solve completes
+              rerunBtn.style.cssText = "font-size:0.8em; padding:1px 6px; margin-left:4px; cursor:pointer;";
+              rerunBtn.onclick = () => rerunSingleBest(s);
+              p.appendChild(rerunBtn);
+              detailsDiv.appendChild(p);
+            }
+
+            // Cache for re-balancing
+            cachedIndividualBests = individualBests;
+            recalcBalancedTargets();
+            console.log("Individual bests:", individualBests);
+            console.log("Targets (90%):", cachedBalancedTargets);
+
+            best = await runBalancedPhase2(solveTime, iterations, solveTextElem);
+            updateRebalanceButton();
+          } else {
+            // Standard weighted solve
+            cachedBalancedTargets = null;
+            cachedIndividualBests = null;
+            lastBalancedResult = null;
+            updateRebalanceButton();
+            const weights = prioritiesToWeights(priorities, originalScore, playerCount, flagCount);
+            solver.setWeights(weights.buildRate, weights.expBonus, weights.flaggy);
+            best = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
+              solveTextElem.innerText = `Optimizing... (${i + 1}/${n})`;
+            });
+            document.getElementById("end").innerText = `Final BuildRate: ${mmoifyNumber(best.score.buildRate, false)}/HR, EXP: ${mmoifyNumber(best.score.expBonus, false)}%, Flaggy: ${mmoifyNumber(best.score.flaggy, false)}/HR`;
+          }
+
+          showResult(best);
+
+          solveTextElem.innerText = "Solve";
+          openCogTab();
+        } finally {
+          setSolving(false);
+        }
       };
     
       function openCogTab() {
