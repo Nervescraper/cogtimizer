@@ -27,6 +27,23 @@ function cogDict(cogs) {
 
 const BOARD = 'fake-board'; // getOptimalSteps passes this through without inspecting it
 
+// Helper: simulate what stepsChangeHandler does — apply steps as position swaps.
+// Returns a map of position -> initialKey showing which cog ends up where.
+function replaySteps(steps, cogs) {
+  // Build position -> initialKey map (each cog starts at its initialKey)
+  const grid = {};
+  for (const c of Object.values(cogs)) {
+    grid[c.initialKey] = c.initialKey;
+  }
+  // Apply each step as a swap of two positions
+  for (const step of steps) {
+    const temp = grid[step.keyFrom];
+    grid[step.keyFrom] = grid[step.keyTo];
+    grid[step.keyTo] = temp;
+  }
+  return grid;
+}
+
 describe('getOptimalSteps — baseline behavior', () => {
 
   it('returns empty array when no cogs moved', () => {
@@ -109,6 +126,89 @@ describe('getOptimalSteps — baseline behavior', () => {
     assert.ok('keyFrom' in step);
     assert.ok('keyTo' in step);
     assert.ok('targetCog' in step);
+  });
+
+});
+
+describe('getOptimalSteps — replay correctness', () => {
+
+  it('3-cycle: applying steps in order produces the solved permutation', () => {
+    // Solved state: A at 1 (was 0), B at 2 (was 1), C at 0 (was 2)
+    const cogs = cogDict([
+      makeCog(1, 0, { buildRate: 10 }),
+      makeCog(2, 1, { buildRate: 20 }),
+      makeCog(0, 2, { buildRate: 30 }),
+    ]);
+    const steps = getOptimalSteps(BOARD, cogs);
+    assert.strictEqual(steps.length, 2);
+
+    // Replay: grid[position] = initialKey of the cog now at that position
+    const grid = replaySteps(steps, cogs);
+    // After replay, each solved position should contain the cog that moved there
+    for (const c of Object.values(cogs)) {
+      assert.strictEqual(grid[c.key], c.initialKey,
+        `Position ${c.key} should contain cog from ${c.initialKey}, got cog from ${grid[c.key]}`);
+    }
+  });
+
+  it('two independent 2-cycles: replay produces correct final state', () => {
+    const cogs = cogDict([
+      makeCog(1, 0, { buildRate: 10 }),
+      makeCog(0, 1, { buildRate: 20 }),
+      makeCog(11, 10, { buildRate: 30 }),
+      makeCog(10, 11, { buildRate: 40 }),
+    ]);
+    const steps = getOptimalSteps(BOARD, cogs);
+    assert.strictEqual(steps.length, 2);
+
+    const grid = replaySteps(steps, cogs);
+    for (const c of Object.values(cogs)) {
+      assert.strictEqual(grid[c.key], c.initialKey,
+        `Position ${c.key} should contain cog from ${c.initialKey}, got cog from ${grid[c.key]}`);
+    }
+  });
+
+  it('4-cycle: produces 3 steps and replay is correct', () => {
+    // A: 0->1, B: 1->2, C: 2->3, D: 3->0
+    const cogs = cogDict([
+      makeCog(1, 0, { buildRate: 10 }),
+      makeCog(2, 1, { buildRate: 20 }),
+      makeCog(3, 2, { buildRate: 30 }),
+      makeCog(0, 3, { buildRate: 40 }),
+    ]);
+    const steps = getOptimalSteps(BOARD, cogs);
+    assert.strictEqual(steps.length, 3);
+
+    const grid = replaySteps(steps, cogs);
+    for (const c of Object.values(cogs)) {
+      assert.strictEqual(grid[c.key], c.initialKey,
+        `Position ${c.key} should contain cog from ${c.initialKey}, got cog from ${grid[c.key]}`);
+    }
+  });
+
+  it('cog properties are preserved through steps', () => {
+    const cogs = cogDict([
+      makeCog(1, 0, { buildRate: 10, expBonus: 5, flaggy: 3 }),
+      makeCog(0, 1, { buildRate: 20, expBonus: 15, flaggy: 7 }),
+    ]);
+    const steps = getOptimalSteps(BOARD, cogs);
+    assert.strictEqual(steps.length, 1);
+    const step = steps[0];
+    // The step's cog should have the properties of the cog that was originally at keyFrom
+    assert.strictEqual(step.cog.buildRate, 10);
+    assert.strictEqual(step.cog.expBonus, 5);
+    assert.strictEqual(step.cog.flaggy, 3);
+  });
+
+  it('board reference is the exact object passed in', () => {
+    const boardObj = { id: 'test-board-ref' };
+    const cogs = cogDict([
+      makeCog(1, 0),
+      makeCog(0, 1),
+    ]);
+    const steps = getOptimalSteps(boardObj, cogs);
+    assert.strictEqual(steps.length, 1);
+    assert.strictEqual(steps[0].board, boardObj); // exact reference, not a copy
   });
 
 });
