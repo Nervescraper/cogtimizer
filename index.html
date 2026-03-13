@@ -979,6 +979,9 @@
           grpBest.textContent = "vs Max";
           groupRow.appendChild(grpBest);
         }
+        const grpNotes = document.createElement("th");
+        grpNotes.style.cssText = cellStyle + " border: none;";
+        groupRow.appendChild(grpNotes);
         table.appendChild(groupRow);
 
         // Column header row
@@ -1005,7 +1008,25 @@
             thead.appendChild(th);
           }
         }
+        const thNotes = document.createElement("th");
+        thNotes.style.cssText = cellStyle + " text-align: center;" + " " + groupBorder;
+        thNotes.textContent = "Notes";
+        thead.appendChild(thNotes);
         table.appendChild(thead);
+
+        // Precompute domination: for each run, find if a later run is strictly better in all 3 stats
+        const dominatedBy = new Array(solutionHistory.length).fill(-1);
+        for (let i = 0; i < solutionHistory.length; i++) {
+          const si = solutionHistory[i].scores;
+          for (let k = i + 1; k < solutionHistory.length; k++) {
+            const sk = solutionHistory[k].scores;
+            if (sk.buildRate >= si.buildRate && sk.expBonus >= si.expBonus && sk.flaggy >= si.flaggy &&
+                (sk.buildRate > si.buildRate || sk.expBonus > si.expBonus || sk.flaggy > si.flaggy)) {
+              dominatedBy[i] = k;
+              break; // first dominator is enough
+            }
+          }
+        }
 
         for (let i = solutionHistory.length - 1; i >= 0; i--) {
           const entry = solutionHistory[i];
@@ -1065,6 +1086,16 @@
               tr.appendChild(td);
             }
           }
+
+          // Notes column + strikethrough for dominated runs
+          const tdNotes = document.createElement("td");
+          tdNotes.style.cssText = cellStyle + " " + groupBorder;
+          if (dominatedBy[i] >= 0) {
+            tr.style.textDecoration = "line-through";
+            tr.style.opacity = "0.6";
+            tdNotes.textContent = `Run #${dominatedBy[i] + 1} is strictly better, use it instead.`;
+          }
+          tr.appendChild(tdNotes);
 
           table.appendChild(tr);
         }
