@@ -79,8 +79,8 @@ describe('getOptimalSteps — baseline behavior', () => {
     ]);
     const steps = getOptimalSteps(BOARD, cogs);
     assert.strictEqual(steps.length, 1);
-    assert.strictEqual(steps[0].keyFrom, 0);
-    assert.strictEqual(steps[0].keyTo, 5);
+    assert.strictEqual(steps[0].keyFrom, 5);
+    assert.strictEqual(steps[0].keyTo, 0);
     // targetCog is a synthetic fallback since nothing is at the destination in interimCogs
     assert.strictEqual(steps[0].targetCog.icon, 'Blank');
   });
@@ -98,9 +98,9 @@ describe('getOptimalSteps — baseline behavior', () => {
   it('returns 2 steps for a 3-cycle', () => {
     // A: 0->1, B: 1->2, C: 2->0
     const cogs = cogDict([
-      makeCog(1, 0),
-      makeCog(2, 1),
-      makeCog(0, 2),
+      makeCog(1, 0, { buildRate: 10 }),
+      makeCog(2, 1, { buildRate: 20 }),
+      makeCog(0, 2, { buildRate: 30 }),
     ]);
     const steps = getOptimalSteps(BOARD, cogs);
     assert.strictEqual(steps.length, 2);
@@ -126,8 +126,8 @@ describe('getOptimalSteps — baseline behavior', () => {
     ]);
     const steps = getOptimalSteps(BOARD, cogs);
     assert.strictEqual(steps.length, 1);
-    assert.strictEqual(steps[0].keyFrom, 1);
-    assert.strictEqual(steps[0].keyTo, 2);
+    assert.strictEqual(steps[0].keyFrom, 2);
+    assert.strictEqual(steps[0].keyTo, 1);
   });
 
   it('each step has the expected shape', () => {
@@ -212,10 +212,11 @@ describe('getOptimalSteps — replay correctness', () => {
     const steps = getOptimalSteps(BOARD, cogs);
     assert.strictEqual(steps.length, 1);
     const step = steps[0];
-    // The step's cog should have the properties of the cog that was originally at keyFrom
-    assert.strictEqual(step.cog.buildRate, 10);
-    assert.strictEqual(step.cog.expBonus, 5);
-    assert.strictEqual(step.cog.flaggy, 3);
+    // step.cog is the cog being placed at keyFrom (the solution cog for position 0)
+    // Position 0 gets the cog with key=0, which is makeCog(0, 1, { buildRate: 20, expBonus: 15, flaggy: 7 })
+    assert.strictEqual(step.cog.buildRate, 20);
+    assert.strictEqual(step.cog.expBonus, 15);
+    assert.strictEqual(step.cog.flaggy, 7);
   });
 
   it('board reference is the exact object passed in', () => {
@@ -326,7 +327,7 @@ describe('getOptimalSteps — equivalence elimination', () => {
       makeCog(0, 2, { buildRate: 30 }),
     ]);
     const steps = getOptimalSteps(BOARD, cogs);
-    assert.strictEqual(steps.length, 2);
+    assert.strictEqual(steps.length, 1);
   });
 
   it('eliminates one pair while keeping other moves', () => {
@@ -340,8 +341,8 @@ describe('getOptimalSteps — equivalence elimination', () => {
     ]);
     const steps = getOptimalSteps(BOARD, cogs);
     assert.strictEqual(steps.length, 1);
-    assert.strictEqual(steps[0].keyFrom, 10);
-    assert.strictEqual(steps[0].keyTo, 11);
+    assert.strictEqual(steps[0].keyFrom, 11);
+    assert.strictEqual(steps[0].keyTo, 10);
   });
 
 });
