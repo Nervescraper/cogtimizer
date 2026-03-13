@@ -171,10 +171,15 @@
       </script>
     </div>
     <div id="cog-details" style="display:none;">
-      <p style="font-size:0.85em; opacity:0.7; margin:4px 0;">Note: The solver does not currently adjust tiny cogs. Adjust those manually for best results.</p>
+      <p style="font-size:0.95em; opacity:0.7; margin:4px 0;">Note: The solver does not currently adjust tiny cogs. Adjust those manually for best results.</p>
       <br/>
-      <p style="font-size:0.85em; margin:4px 0;">Initial theoretical maximums are calculated quickly upon page load, re-run them for better values. Also note these are highly dependent on the cogs you have available, so if you've been trashing all of the Flaggy bonus cogs, don't expect a great "maximum" for Flaggy rate.</p>
+      <p style="font-size:0.95em; margin:4px 0;">Initial theoretical maximums are calculated quickly upon page load, re-run them for better values. Also note these are highly dependent on the cogs you have available, so if you've been trashing all of the Flaggy bonus cogs, don't expect a great "maximum" for Flaggy rate.</p>
       <p id="start"></p>
+      <div id="strategy-buttons" style="display:none; margin:8px 0;">
+        <button class="strategy-btn" data-preset="balanced">Balanced</button>
+        <button class="strategy-btn" data-preset="longterm">XP Focused</button>
+        <button class="strategy-btn" data-preset="flaggy">Flaggy Push</button>
+      </div>
       <div id="balanced-details"></div>
       <div id="solution-history"></div>
     </div>
@@ -572,6 +577,7 @@
         const maxIter = fastMax ? 2 : (getInput("solveIterations") || 3);
         findTheoreticalMaximums(maxTime, maxIter, document.getElementById("solvetext")).then(() => {
           document.getElementById("solvetext").innerText = "Solve";
+          document.getElementById("strategy-buttons").style.display = "";
         });
       }
 
@@ -759,7 +765,7 @@
       function setSolving(state) {
         solving = state;
         document.getElementById("solve").disabled = state;
-        for (const btn of document.querySelectorAll(".rerun-best-btn, .load-solution-btn")) {
+        for (const btn of document.querySelectorAll(".rerun-best-btn, .load-solution-btn, .strategy-btn")) {
           btn.disabled = state;
         }
       }
@@ -815,14 +821,16 @@
             p.innerText = `Theoretical Max ${label}: skipped (no flags)`;
           } else {
             const displayVal = stat === "expBonus" ? formatXp(cachedIndividualBests[stat]) : mmoifyNumber(cachedIndividualBests[stat], false);
-            p.innerHTML = `Theoretical Max ${label}: <span data-stat="${stat}">${displayVal}${unit}</span> `;
             const rerunBtn = document.createElement("button");
             rerunBtn.innerText = "Re-run";
             rerunBtn.className = "rerun-best-btn";
             rerunBtn.disabled = solving;
-            rerunBtn.style.cssText = "font-size:0.8em; padding:1px 6px; margin-left:4px; cursor:pointer;";
+            rerunBtn.style.cssText = "font-size:0.8em; padding:1px 6px; margin-right:6px; cursor:pointer;";
             rerunBtn.onclick = () => rerunSingleBest(s);
             p.appendChild(rerunBtn);
+            const span = document.createElement("span");
+            span.innerHTML = `Theoretical Max ${label}: <span data-stat="${stat}">${displayVal}${unit}</span>`;
+            p.appendChild(span);
           }
           detailsDiv.appendChild(p);
         }
@@ -976,7 +984,7 @@
         container.appendChild(heading);
         const cellStyle = "padding: 2px 6px; border: 1px solid #2a4a7a; white-space: nowrap;";
         const table = document.createElement("table");
-        table.style.cssText = "border-collapse: collapse; font-size: 0.9em;";
+        table.style.cssText = "border-collapse: collapse; font-size: 1em;";
         const orig = window.originalCogInventory.score;
         const sign = v => v > 0 ? "+" : "";
         const deltaPct = (val, base) => base !== 0 ? ((val - base) / Math.abs(base) * 100).toFixed(0) : 0;
@@ -1219,6 +1227,50 @@
 
         document.getElementById("loaderbtn").className = "active";
         document.getElementById("cogbtn").className = "";
+      }
+
+      for (const btn of document.querySelectorAll(".strategy-btn")) {
+        btn.addEventListener("click", async () => {
+          if (solving) return;
+          setSolving(true);
+          const preset = btn.dataset.preset;
+          const presetLabels = { longterm: "XP Focused", flaggy: "Flaggy Push", balanced: "Balanced" };
+          const label = presetLabels[preset] || preset;
+          try {
+            const solveTime = getInput("solveTime") || 2500;
+            const iterations = getInput("solveIterations") || 3;
+            const solveTextElem = document.getElementById("solvetext");
+
+            solveTextElem.innerText = `Running ${label}...`;
+            document.getElementById("steps").innerHTML = "";
+            await yield();
+
+            const originalScore = window.originalCogInventory.score;
+            document.getElementById("start").innerText = `Starting BuildRate: ${mmoifyNumber(originalScore.buildRate, false)}/HR, EXP: ${formatXp(originalScore.expBonus)}%, Flaggy: ${mmoifyNumber(originalScore.flaggy, false)}/HR`;
+
+            const playerCount = cogInvetory.playerCount || 10;
+            const flagCount = Math.max(cogInvetory.flagPose.length, 1);
+            let best;
+
+            if (preset === "balanced") {
+              best = await runBalancedPhase2(solveTime, iterations, solveTextElem);
+            } else {
+              const priorities = WEIGHT_PRESETS[preset];
+              const weights = prioritiesToWeights(priorities, originalScore, playerCount, flagCount);
+              solver.setWeights(weights.buildRate, weights.expBonus, weights.flaggy);
+              best = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
+                solveTextElem.innerText = `Running ${label}... (${i + 1}/${n})`;
+              });
+            }
+
+            saveSolution(best, label, preset === "balanced");
+            showResult(best);
+            solveTextElem.innerText = "Solve";
+            openCogTab();
+          } finally {
+            setSolving(false);
+          }
+        });
       }
 
       document.getElementById("loaderbtn").addEventListener("click", () => {

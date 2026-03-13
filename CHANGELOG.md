@@ -10,4 +10,5 @@
 - **Theoretical maximum** values for each stat are now calculated automatically when you load your data, so you can see how close your current board is to the best possible arrangement
 - Rearranging your board takes **fewer steps** overall because the optimizer no longer chains moves through spare inventory positions unnecessarily
 - **Locked slots** and **flag positions** are now shown with overlay icons on the board so you can tell at a glance which positions the solver can't touch
+- **Quick-run strategy buttons** appear after your theoretical maximums are calculated — run Balanced, XP Focused, or Flaggy Push directly without opening settings
 - **Settings panel** is accessible from the Loader tab so you can configure solve time and strategy before loading your data

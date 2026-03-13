@@ -594,3 +594,25 @@ body {
 #cog-details button:hover {
     background-color: #3a6aaa;
 }
+
+.strategy-btn {
+    font-family: 'PressStart';
+    font-size: 9px;
+    padding: 8px 14px;
+    margin-right: 8px;
+    background-color: #2a4a7a;
+    color: #c8d6e5;
+    border: 1px solid #3a6aaa;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 2px 2px 0px rgba(0,0,0,0.3);
+}
+
+.strategy-btn:hover:not(:disabled) {
+    background-color: #3a6aaa;
+}
+
+.strategy-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
