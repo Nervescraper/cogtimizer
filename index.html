@@ -421,6 +421,15 @@
         return str.toString();
       }
 
+      function getXpMult() {
+        return window.originalCogInventory && window.originalCogInventory.tinyMultipliers
+          ? window.originalCogInventory.tinyMultipliers.expBonus : 1;
+      }
+
+      function formatXp(rawXp, addSign = false) {
+        return mmoifyNumber(rawXp * getXpMult(), addSign);
+      }
+
       function load(save) {
         cogInvetory.load(save);
         window.originalCogInventory = cogInvetory.clone();
@@ -502,9 +511,8 @@
 
         document.getElementById("solve").disabled = "";
         document.getElementById("steps").innerHTML = "";
-        const xpMult = cogInvetory.tinyMultipliers ? cogInvetory.tinyMultipliers.expBonus : 1;
         document.getElementById("buildrate").innerText = mmoifyNumber(initScore.buildRate, false) + "/HR";
-        document.getElementById("xpbonus").innerText = mmoifyNumber(initScore.expBonus * xpMult, false) + "%";
+        document.getElementById("xpbonus").innerText = formatXp(initScore.expBonus) + "%";
         document.getElementById("flaggyrate").innerText = mmoifyNumber(initScore.flaggy, false) + "/HR";
         
         for (let oneOption of [...OPTIMIZABLE, "solveTime", "solveIterations", "weightPreset"]) {
@@ -676,7 +684,7 @@
         const pctBr = cachedIndividualBests.buildRate > 0 ? (best.score.buildRate / cachedIndividualBests.buildRate * 100).toFixed(0) : 100;
         const pctXp = cachedIndividualBests.expBonus > 0 ? (best.score.expBonus / cachedIndividualBests.expBonus * 100).toFixed(0) : 100;
         const pctFl = cachedIndividualBests.flaggy > 0 ? (best.score.flaggy / cachedIndividualBests.flaggy * 100).toFixed(0) : 100;
-        document.getElementById("end").innerText = `Balanced: ${mmoifyNumber(best.score.buildRate, false)}/HR (${pctBr}%), ${mmoifyNumber(best.score.expBonus, false)}% (${pctXp}%), ${mmoifyNumber(best.score.flaggy, false)}/HR (${pctFl}%)`;
+        document.getElementById("end").innerText = `Balanced: ${mmoifyNumber(best.score.buildRate, false)}/HR (${pctBr}%), ${formatXp(best.score.expBonus)}% (${pctXp}%), ${mmoifyNumber(best.score.flaggy, false)}/HR (${pctFl}%)`;
       }
 
       async function rerunSingleBest(statIndex) {
@@ -709,7 +717,8 @@
           const detailsDiv = document.getElementById("balanced-details");
           const spans = detailsDiv.querySelectorAll(`[data-stat="${stat}"]`);
           if (spans.length) {
-            spans[0].innerText = `${mmoifyNumber(cachedIndividualBests[stat], false)}${unit}`;
+            const rerunVal = stat === "expBonus" ? formatXp(cachedIndividualBests[stat]) : mmoifyNumber(cachedIndividualBests[stat], false);
+            spans[0].innerText = `${rerunVal}${unit}`;
           }
 
           // Update balanced percentages against new bests
@@ -742,15 +751,14 @@
 
       function showResult(best) {
         const originalScore = window.originalCogInventory.score;
-        const xpMult = cogInvetory.tinyMultipliers ? cogInvetory.tinyMultipliers.expBonus : 1;
         const brDelta = best.score.buildRate - originalScore.buildRate;
-        const xpDelta = (best.score.expBonus - originalScore.expBonus) * xpMult;
+        const xpDelta = (best.score.expBonus - originalScore.expBonus) * getXpMult();
         const flDelta = best.score.flaggy - originalScore.flaggy;
         const brSign = brDelta >= 0 ? "+" : "";
         const xpSign = xpDelta >= 0 ? "+" : "";
         const flSign = flDelta >= 0 ? "+" : "";
         document.getElementById("buildrate").innerText = `${mmoifyNumber(best.score.buildRate, false)}/HR (${brSign}${mmoifyNumber(brDelta)})`;
-        document.getElementById("xpbonus").innerText = `${mmoifyNumber(best.score.expBonus * xpMult, false)}% (${xpSign}${mmoifyNumber(xpDelta)})`;
+        document.getElementById("xpbonus").innerText = `${formatXp(best.score.expBonus)}% (${xpSign}${mmoifyNumber(xpDelta)})`;
         document.getElementById("flaggyrate").innerText = `${mmoifyNumber(best.score.flaggy, false)}/HR (${flSign}${mmoifyNumber(flDelta)})`;
 
         optimalSteps = f.getOptimalSteps(best.board, best.cogs);
@@ -775,7 +783,6 @@
       const solutionHistory = [];
 
       function saveSolution(inventory, label, isBalanced = false) {
-        const xpMult = window.originalCogInventory.tinyMultipliers ? window.originalCogInventory.tinyMultipliers.expBonus : 1;
         const saved = inventory.clone();
         solutionHistory.push({
           inventory: saved,
@@ -785,7 +792,6 @@
             expBonus: inventory.score.expBonus,
             flaggy: inventory.score.flaggy
           },
-          xpMult: xpMult,
           isBalanced: isBalanced
         });
         renderSolutionHistory();
@@ -809,7 +815,7 @@
           loadBtn.style.cssText = "font-size:0.8em; padding:1px 6px; margin-right:6px; cursor:pointer;";
           loadBtn.onclick = () => loadSolution(i);
           row.appendChild(loadBtn);
-          let desc = `#${i + 1} ${entry.label} — BR: ${mmoifyNumber(s.buildRate, false)}/HR, XP: ${mmoifyNumber(s.expBonus * entry.xpMult, false)}%, FL: ${mmoifyNumber(s.flaggy, false)}/HR`;
+          let desc = `#${i + 1} ${entry.label} — BR: ${mmoifyNumber(s.buildRate, false)}/HR, XP: ${formatXp(s.expBonus)}%, FL: ${mmoifyNumber(s.flaggy, false)}/HR`;
           if (entry.isBalanced && cachedIndividualBests) {
             const pBr = cachedIndividualBests.buildRate > 0 ? (s.buildRate / cachedIndividualBests.buildRate * 100).toFixed(0) : 100;
             const pXp = cachedIndividualBests.expBonus > 0 ? (s.expBonus / cachedIndividualBests.expBonus * 100).toFixed(0) : 100;
@@ -880,7 +886,7 @@
           console.log("Starting");
 
           const originalScore = window.originalCogInventory.score;
-          document.getElementById("start").innerText = `Starting BuildRate: ${mmoifyNumber(originalScore.buildRate, false)}/HR, EXP: ${mmoifyNumber(originalScore.expBonus, false)}%, Flaggy: ${mmoifyNumber(originalScore.flaggy, false)}/HR`;
+          document.getElementById("start").innerText = `Starting BuildRate: ${mmoifyNumber(originalScore.buildRate, false)}/HR, EXP: ${formatXp(originalScore.expBonus)}%, Flaggy: ${mmoifyNumber(originalScore.flaggy, false)}/HR`;
 
           const playerCount = cogInvetory.playerCount || 10;
           const flagCount = Math.max(cogInvetory.flagPose.length, 1);
@@ -918,7 +924,8 @@
               individualBests[stat] = result.score[stat];
               console.log(`Best ${stat}: ${individualBests[stat]}`);
               const p = document.createElement("p");
-              p.innerHTML = `Best ${label}: <span data-stat="${stat}">${mmoifyNumber(individualBests[stat], false)}${unit}</span> `;
+              const displayVal = stat === "expBonus" ? formatXp(individualBests[stat]) : mmoifyNumber(individualBests[stat], false);
+              p.innerHTML = `Best ${label}: <span data-stat="${stat}">${displayVal}${unit}</span> `;
               const rerunBtn = document.createElement("button");
               rerunBtn.innerText = "Re-run";
               rerunBtn.className = "rerun-best-btn";
@@ -944,7 +951,7 @@
             best = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {
               solveTextElem.innerText = `Optimizing... (${i + 1}/${n})`;
             });
-            document.getElementById("end").innerText = `Final BuildRate: ${mmoifyNumber(best.score.buildRate, false)}/HR, EXP: ${mmoifyNumber(best.score.expBonus, false)}%, Flaggy: ${mmoifyNumber(best.score.flaggy, false)}/HR`;
+            document.getElementById("end").innerText = `Final BuildRate: ${mmoifyNumber(best.score.buildRate, false)}/HR, EXP: ${formatXp(best.score.expBonus)}%, Flaggy: ${mmoifyNumber(best.score.flaggy, false)}/HR`;
           }
 
           const presetLabels = { longterm: "Long-term", flaggy: "Flaggy Push", balanced: "Balanced", custom: "Custom" };
