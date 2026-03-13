@@ -174,12 +174,13 @@
       <p style="font-size:0.95em; opacity:0.7; margin:4px 0;">Note: The solver does not currently adjust tiny cogs. Adjust those manually for best results.</p>
       <br/>
       <p style="font-size:0.95em; margin:4px 0;">Initial theoretical maximums are calculated quickly upon page load, re-run them for better values. Also note these are highly dependent on the cogs you have available, so if you've been trashing all of the Flaggy bonus cogs, don't expect a great "maximum" for Flaggy rate.</p>
-      <p id="start"></p>
+      <br/>
       <div id="strategy-buttons" style="display:none; margin:8px 0;">
         <button class="strategy-btn" data-preset="balanced">Balanced</button>
         <button class="strategy-btn" data-preset="longterm">XP Focused</button>
         <button class="strategy-btn" data-preset="flaggy">Flaggy Push</button>
       </div>
+      <p id="start"></p>
       <div id="balanced-details"></div>
       <div id="solution-history"></div>
     </div>
@@ -569,6 +570,9 @@
         }
 
         openCogTab();
+
+        const initScoreDisplay = cogInvetory.score;
+        document.getElementById("start").innerText = `Initial state: BuildRate ${mmoifyNumber(initScoreDisplay.buildRate, false)}/HR, EXP ${formatXp(initScoreDisplay.expBonus)}%, Flaggy ${mmoifyNumber(initScoreDisplay.flaggy, false)}/HR`;
 
         // Auto-compute theoretical maximums
         cachedIndividualBests = null;
@@ -1201,7 +1205,6 @@
           console.log("Starting");
 
           const originalScore = window.originalCogInventory.score;
-          document.getElementById("start").innerText = `Starting BuildRate: ${mmoifyNumber(originalScore.buildRate, false)}/HR, EXP: ${formatXp(originalScore.expBonus)}%, Flaggy: ${mmoifyNumber(originalScore.flaggy, false)}/HR`;
 
           const playerCount = cogInvetory.playerCount || 10;
           const flagCount = Math.max(cogInvetory.flagPose.length, 1);
@@ -1280,7 +1283,6 @@
             await yield();
 
             const originalScore = window.originalCogInventory.score;
-            document.getElementById("start").innerText = `Starting BuildRate: ${mmoifyNumber(originalScore.buildRate, false)}/HR, EXP: ${formatXp(originalScore.expBonus)}%, Flaggy: ${mmoifyNumber(originalScore.flaggy, false)}/HR`;
 
             const playerCount = cogInvetory.playerCount || 10;
             const flagCount = Math.max(cogInvetory.flagPose.length, 1);
