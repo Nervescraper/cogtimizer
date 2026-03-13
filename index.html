@@ -419,6 +419,7 @@
 
       function load(save) {
         cogInvetory.load(save);
+        window.originalCogInventory = cogInvetory.clone();
         console.log("Loading");
         // Fetch Gem-Shop flaggy upgrades
         document.getElementById("flaggyShop").value = cogInvetory.flaggyShopUpgrades;
@@ -630,7 +631,8 @@
         console.log("Starting");
 
         let start = cogInvetory.clone();
-        document.getElementById("start").innerText = `Starting BuildRate: ${start.score.buildRate}, EXP: ${start.score.expBonus}, Flaggy: ${start.score.flaggy}`;
+        const originalScore = window.originalCogInventory.score;
+        document.getElementById("start").innerText = `Starting BuildRate: ${originalScore.buildRate}, EXP: ${originalScore.expBonus}, Flaggy: ${originalScore.flaggy}`;
 
         // Run multiple iterations, keeping the best result
         const playerCount = cogInvetory.playerCount || 10;
@@ -657,9 +659,9 @@
         document.getElementById("end").innerText = `Final BuildRate: ${best.score.buildRate}, EXP: ${best.score.expBonus}, Flaggy: ${best.score.flaggy}`;
 
         const xpMult = cogInvetory.tinyMultipliers ? cogInvetory.tinyMultipliers.expBonus : 1;
-        const brDelta = best.score.buildRate - start.score.buildRate;
-        const xpDelta = (best.score.expBonus - start.score.expBonus) * xpMult;
-        const flDelta = best.score.flaggy - start.score.flaggy;
+        const brDelta = best.score.buildRate - originalScore.buildRate;
+        const xpDelta = (best.score.expBonus - originalScore.expBonus) * xpMult;
+        const flDelta = best.score.flaggy - originalScore.flaggy;
         const brSign = brDelta >= 0 ? "+" : "";
         const xpSign = xpDelta >= 0 ? "+" : "";
         const flSign = flDelta >= 0 ? "+" : "";
