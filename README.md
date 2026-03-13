@@ -1,13 +1,25 @@
 # Cogtimizer
-Cogtimizer is an automatic cog board optimization suggestor for Legends of Idleon | The Free Idle MMO.
-It is an open-source project that uses a self-written algorithem similar to a diffusion model, to find solutions that use the existing cogs as effective as possible.
-All calculations are done on client side to minimize server load.
 
-# Credits
-For the nice "Press Start" Font
-- codeman38 | cody@zone38.net | http://www.zone38.net/
+Automatic cog board optimizer for [Legends of Idleon](https://www.legendsofidleon.com/). Finds optimal cog arrangements using simulated annealing, tabu search, and genetic algorithms. All calculations run client-side.
 
-# Fork details
-This includes a number of fixes that have been stalled at the PR stage upstream. 
+**Live:** https://nervescraper.github.io/cogtimizer/
 
-These have been merged in as remote tracking branches to keep original authorship intact.
+## Usage
+
+1. Paste your Idleon save JSON or enter your username
+2. Click **Load**, then **Solve**
+3. Follow the step-by-step instructions to rearrange your cog board
+
+## Fork changes
+
+This fork includes fixes stalled upstream plus:
+
+- **Step optimizer redesign** — replaced cycle-decomposition with selection sort over board positions, fixing empty-slot and inflated step-count bugs
+- **Solver improvements** — simulated annealing, tabu search, and genetic algorithm solvers
+- **Blank slot fix** — step replay now correctly handles cogs displaced by spare/build replacements
+
+## Credits
+
+Original project by [Monoblos](https://github.com/Monoblos/cogtimizer). Upstream fixes from [Thefrank](https://github.com/Thefrank/cogtimizer).
+
+"Press Start" font by codeman38 | cody@zone38.net | http://www.zone38.net/
