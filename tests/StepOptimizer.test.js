@@ -465,6 +465,56 @@ describe('getOptimalSteps — redesign guarantees', () => {
     assert.strictEqual(steps.length, 1);
   });
 
+  it('displaced cogs use original cog data instead of Blank when originalCogs provided', () => {
+    // Spare cog 108 replaces board cog 0. Board cog 0 is NOT in the solution (dropped).
+    // Without originalCogs: targetCog is Blank
+    // With originalCogs: targetCog is the real cog from position 0
+    const origIcon = { path: 'icons/cogs/Crystal_Topaz.png' };
+    const spareIcon = { path: 'icons/cogs/Crystal_Ruby.png' };
+
+    const solutionCogs = cogDict([
+      makeCog(0, 108, { buildRate: 50, icon: spareIcon }),  // spare 108 → board 0
+    ]);
+    const originalCogs = cogDict([
+      makeCog(0, 0, { buildRate: 10, icon: origIcon }),     // original board cog at 0
+      makeCog(108, 108, { buildRate: 50, icon: spareIcon }),// original spare cog at 108
+    ]);
+
+    // Without originalCogs — targetCog is Blank
+    const stepsNoOrig = getOptimalSteps(BOARD, solutionCogs);
+    assert.strictEqual(stepsNoOrig.length, 1);
+    assert.strictEqual(stepsNoOrig[0].targetCog.icon, 'Blank');
+
+    // With originalCogs — targetCog is the real cog
+    const steps = getOptimalSteps(BOARD, solutionCogs, originalCogs);
+    assert.strictEqual(steps.length, 1);
+    assert.strictEqual(steps[0].targetCog.icon.path, origIcon.path);
+    assert.strictEqual(steps[0].targetCog.buildRate, 10);
+  });
+
+  it('tracking does not cascade blanks when originalCogs provided', () => {
+    // Two spare cogs replace two board cogs. Board cogs are dropped from solution.
+    // Without originalCogs: both steps + cascaded steps show Blank targetCog.
+    // With originalCogs: no Blank targetCogs.
+    const solutionCogs = cogDict([
+      makeCog(0, 108, { buildRate: 50 }),  // spare 108 → board 0
+      makeCog(1, 109, { buildRate: 60 }),  // spare 109 → board 1
+      makeCog(2, 0, { buildRate: 10 }),    // board 0 (original) → board 2 (but cog 0 dropped!)
+    ]);
+    // Original has cogs at 0, 1, 2, 108, 109
+    const originalCogs = cogDict([
+      makeCog(0, 0, { buildRate: 10 }),
+      makeCog(1, 1, { buildRate: 20 }),
+      makeCog(2, 2, { buildRate: 30 }),
+      makeCog(108, 108, { buildRate: 50 }),
+      makeCog(109, 109, { buildRate: 60 }),
+    ]);
+
+    const steps = getOptimalSteps(BOARD, solutionCogs, originalCogs);
+    const blanks = steps.filter(s => s.targetCog.icon === 'Blank');
+    assert.strictEqual(blanks.length, 0, `Expected no Blank targetCogs, got ${blanks.length}`);
+  });
+
   it('replay produces correct final state for board-spare swaps', () => {
     const cogs = cogDict([
       makeCog(0, 108, { buildRate: 10 }),

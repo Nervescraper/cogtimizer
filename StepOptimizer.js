@@ -18,13 +18,22 @@ function cogsAreEquivalent(a, b) {
   return true;
 }
 
-function getOptimalSteps(board, cogs) {
+function getOptimalSteps(board, cogs, originalCogs) {
   const allCogs = Object.values(cogs).map(c => new Cog(c));
 
   // Lookup: initialKey → Cog object
   const cogByIk = {};
   for (const cog of allCogs) {
     cogByIk[cog.initialKey] = cog;
+  }
+
+  // Include original cogs not present in the solution (displaced by spare/build cogs)
+  if (originalCogs) {
+    for (const c of Object.values(originalCogs)) {
+      if (cogByIk[c.initialKey] === undefined) {
+        cogByIk[c.initialKey] = new Cog(c);
+      }
+    }
   }
 
   // solution[pos] = initialKey of the cog that belongs at board position pos
@@ -38,9 +47,9 @@ function getOptimalSteps(board, cogs) {
   // Tracking state — each cog starts at its initialKey
   const current = {};  // pos → initialKey (undefined = blank)
   const posOf = {};    // initialKey → pos
-  for (const cog of allCogs) {
-    current[cog.initialKey] = cog.initialKey;
-    posOf[cog.initialKey] = cog.initialKey;
+  for (const ik in cogByIk) {
+    current[ik] = Number(ik);
+    posOf[ik] = Number(ik);
   }
 
   // Selection sort over board positions 0–95

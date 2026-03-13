@@ -884,7 +884,7 @@
         document.getElementById("xpbonus").innerText = `${xpDisplay}% (${xpSign}${mmoifyNumber(xpDelta)})`;
         document.getElementById("flaggyrate").innerText = `${flDisplay}/HR (${flSign}${mmoifyNumber(flDelta)})`;
 
-        optimalSteps = f.getOptimalSteps(best.board, best.cogs);
+        optimalSteps = f.getOptimalSteps(best.board, best.cogs, window.originalCogInventory.cogs);
         f.printOptimalSteps(optimalSteps);
         if (document.getElementById("showSolved").checked) {
           f.printBoard(best.board);
