@@ -1,14 +1,17 @@
 // GeneticAlgorithm.js
 
 if (typeof require !== 'undefined') {
-  var { blockCrossover } = require('./BlockCrossover.js');
-  var { SeededRng } = require('./SeededRng.js');
-  var { greedyInit } = require('./GreedyInit.js');
+  var _crossMod = require('./BlockCrossover.js');
+  var blockCrossover = _crossMod.blockCrossover;
+  var _rngMod = require('./SeededRng.js');
+  var SeededRng = _rngMod.SeededRng;
   var _cogMod = require('./CogInventory.js');
   var CogInventory = _cogMod.CogInventory;
   var Cog = _cogMod.Cog;
-  var { IncrementalScorer } = require('./IncrementalScorer.js');
-  var { getScoreSum } = require('./Solver.js');
+  var _scorerMod = require('./IncrementalScorer.js');
+  var IncrementalScorer = _scorerMod.IncrementalScorer;
+  var _solverMod = require('./Solver.js');
+  var getScoreSum = _solverMod.getScoreSum;
 }
 
 var GA_DEFAULTS = {
@@ -33,7 +36,6 @@ class GeneticAlgorithm {
    * @param {Object} settings
    */
   constructor(scorer, settings) {
-    this.scorer = scorer;
     this.settings = { ...GA_DEFAULTS, ...settings };
     this.rng = new SeededRng(this.settings.seed);
   }
@@ -77,7 +79,6 @@ class GeneticAlgorithm {
    */
   _randomSwap(inventory, n) {
     var slots = inventory.availableSlotKeys;
-    var allKeys = Object.keys(inventory.cogs);
 
     for (var i = 0; i < n; i++) {
       var posA = slots[this.rng.randInt(slots.length)];
