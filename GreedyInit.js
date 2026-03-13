@@ -1,8 +1,8 @@
 // GreedyInit.js
-const { getBoostPositions, INV_ROWS, INV_COLUMNS } = typeof require !== 'undefined'
-  ? require('./BoostPositions.js')
-  : { getBoostPositions, INV_ROWS, INV_COLUMNS };
-const SPARE_START = 108;
+if (typeof require !== 'undefined') {
+  var { getBoostPositions, INV_ROWS, INV_COLUMNS } = require('./BoostPositions.js');
+}
+var SPARE_START = 108;
 
 function greedyInit(inventory, weights, targets = null) {
   const inv = inventory.clone();

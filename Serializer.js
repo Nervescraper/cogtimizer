@@ -1,7 +1,11 @@
 // Serializer.js
-const { Cog, CogInventory } = typeof require !== 'undefined'
-  ? require('./CogInventory.js')
-  : { Cog, CogInventory };
+if (typeof require !== 'undefined') {
+  var _cogMod = require('./CogInventory.js');
+  // Assign to globals so the rest of this file can reference them uniformly.
+  // In browser context, Cog and CogInventory are already global from the script tag.
+  Cog = _cogMod.Cog;
+  CogInventory = _cogMod.CogInventory;
+}
 
 const COG_FIELDS = [
   'key', 'initialKey', 'icon', 'buildRate', 'isPlayer', 'isFlag', 'expGain',

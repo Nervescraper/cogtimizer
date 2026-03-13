@@ -1,6 +1,6 @@
-const { getBoostPositions, INV_ROWS, INV_COLUMNS } = typeof require !== 'undefined'
-  ? require('./BoostPositions.js')
-  : { getBoostPositions, INV_ROWS, INV_COLUMNS };
+if (typeof require !== 'undefined') {
+  var { getBoostPositions, INV_ROWS, INV_COLUMNS } = require('./BoostPositions.js');
+}
 
 // Match CogInventory.score floating-point behavior: divide first, then multiply, then ceil
 function ceilBonus(base, bonusPct) {

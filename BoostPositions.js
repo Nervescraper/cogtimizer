@@ -1,5 +1,5 @@
-const INV_ROWS = 8;
-const INV_COLUMNS = 12;
+var INV_ROWS = 8;
+var INV_COLUMNS = 12;
 
 function getBoostPositions(radiusType, row, col) {
   const positions = [];

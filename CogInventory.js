@@ -1,5 +1,5 @@
 if (typeof require !== 'undefined') {
-  var { getBoostPositions } = require('./BoostPositions.js');
+  var { getBoostPositions, INV_ROWS, INV_COLUMNS } = require('./BoostPositions.js');
 }
 
 const ICON_QUALITY_MAP = {
@@ -54,9 +54,9 @@ function tinyCogMultiplier(type, level) {
   return 1 + rawBonus / 100;
 }
 
-const INV_ROWS = 8;
-const INV_COLUMNS = 12;
-const SPARE_START = 108;
+// INV_ROWS and INV_COLUMNS are provided by BoostPositions.js (loaded first in browser,
+// or via require in Node.js — see top of file).
+var SPARE_START = 108;
 
 class Cog {
   constructor(initialValues = {}) {
