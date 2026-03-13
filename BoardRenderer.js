@@ -137,18 +137,38 @@ class BoardRenderer {
       if (cog.icon.type === "blank") {
         div.style.backgroundImage = "";
         div.innerHTML = "";
+        div.style.removeProperty("background-size");
+        div.style.removeProperty("transform");
       } else if (cog.isPlayer) {
         div.style.backgroundImage = `url("${cog.icon.path}")`;
         div.style["background-size"] = `contain`;
+        div.style.removeProperty("transform");
+        div.innerHTML = "";
+      } else if (cog.icon.type === "smallcog") {
+        div.style.removeProperty("background-size");
+        div.style.removeProperty("transform");
+        div.style.backgroundImage = `url("${cog.icon.path}")`;
+        div.style.backgroundPosition = "center";
         div.innerHTML = "";
       }	else {
         div.style.removeProperty("background-size");
+        div.style.removeProperty("transform");
         div.style.backgroundImage = `url("${cog.icon.path}")`;
         div.innerHTML = "";
       }
     } else {
+      // Clear any existing child div from previous renders
+      if (col.firstChild) {
+        col.firstChild.remove();
+      }
       if (cog.isFlag) {
         col.style.backgroundImage = `url("icons/cogs/flag.png")`;
+        col.style.backgroundSize = "cover";
+      } else {
+        // Show lock icon on locked slots
+        const lock = createElem("div");
+        lock.className = "lock-icon";
+        col.appendChild(lock);
       }
     }
   }

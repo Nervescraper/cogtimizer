@@ -76,26 +76,46 @@
           </div>
         </div>
         <div class="border" id="border"></div>
+        <div id="tinycogs-left" style="display:none; flex-direction:column; padding:1em 0 0 0; gap:1px;"></div>
+        <div id="currentBoard">
+        </div>
+        <div id="tinycogs-right" style="display:none; flex-direction:column; padding:1em 0 0 0; gap:1px;"></div>
+        <div id="steps"></div>
         <div id="settings" style="display: none;">
           <p>
             <label for="flaggyShop">Gem Shop Flaggy upgrades</label><br />
             <input type="number" id="flaggyShop" value="0" style="width:6ch" disabled=true></input>
           </p>
           <p>
-            <label for="buildRate">Build rate score weight</label><br />
-            <input type="number" id="buildRate" value="2" style="width:6ch"></input>
+            <label for="weightPreset">Optimization goal</label><br />
+            <select id="weightPreset" style="width:16ch">
+              <option value="longterm" selected>Long-term</option>
+              <option value="flaggy">Flaggy Push</option>
+              <option value="custom">Custom</option>
+            </select>
+            <span id="presetHint" style="font-size:0.8em; margin-left:4px;"></span>
           </p>
+          <div id="customWeights" style="display:none;">
+            <p>
+              <label for="buildRate">Build Rate %</label><br />
+              <input type="number" id="buildRate" value="3" style="width:6ch" min="0" max="100"></input>
+            </p>
+            <p>
+              <label for="expBonus">XP Bonus %</label><br />
+              <input type="number" id="expBonus" value="90" style="width:6ch" min="0" max="100"></input>
+            </p>
+            <p>
+              <label for="flaggy">Flaggy Rate %</label><br />
+              <input type="number" id="flaggy" value="7" style="width:6ch" min="0" max="100"></input>
+            </p>
+          </div>
           <p>
-            <label for="expBonus">EXP Bonus score weight</label><br />
-            <input type="number" id="expBonus" value="50" style="width:6ch"></input>
-          </p>
-          <p>
-            <label for="flaggy">Flaggy rate score weight</label><br />
-            <input type="number" id="flaggy" value="5" style="width:6ch"></input>
-          </p>
-          <p>
-            <label for="solveTime">Solve times (ms)</label><br />
+            <label for="solveTime">Solve time per iteration (ms)</label><br />
             <input type="number" id="solveTime" value="2500" style="width:10ch"></input>
+          </p>
+          <p>
+            <label for="solveIterations">Solver iterations</label><br />
+            <input type="number" id="solveIterations" value="3" style="width:6ch" min="1" max="20"></input>
           </p>
           <h4>Misc.</h4>
           <hr />
@@ -108,9 +128,6 @@
             <input type="checkbox" id="showSolved" />
           </p>
         </div>
-        <div id="currentBoard">
-        </div>
-        <div id="steps"></div>
       </div>
     </div>
     <p id="start"></p>
@@ -161,8 +178,39 @@
       const ROWS = 8;
       const COLUMNS = 12;
       const OPTIMIZABLE = ["buildRate", "expBonus", "flaggy"];
-      
+      const WEIGHT_PRESETS = {
+        longterm: { buildRate: 3, expBonus: 90, flaggy: 7 },
+        flaggy:   { buildRate: 3, expBonus: 47, flaggy: 50 }
+      };
+
       const getInput = (id) => Number.parseInt(document.getElementById(id).value);
+
+      function getWeightPriorities() {
+        const preset = document.getElementById("weightPreset").value;
+        if (preset !== "custom" && WEIGHT_PRESETS[preset]) {
+          return WEIGHT_PRESETS[preset];
+        }
+        return {
+          buildRate: getInput("buildRate"),
+          expBonus: getInput("expBonus"),
+          flaggy: getInput("flaggy")
+        };
+      }
+
+      // Convert user-facing priority percentages to solver weights
+      // normalized by effective score contributions (including boost multipliers)
+      function prioritiesToWeights(priorities, score, playerCount, flagCount) {
+        const br = Math.abs(score.buildRate) || 1;
+        const xpBoost = (score.expBoost + playerCount) / playerCount;
+        const flBoost = (score.flagBoost + flagCount) / flagCount;
+        const xp = (Math.abs(score.expBonus) || 1) * xpBoost;
+        const fl = (Math.abs(score.flaggy) || 1) * flBoost;
+        return {
+          buildRate: priorities.buildRate / br,
+          expBonus: priorities.expBonus / xp,
+          flaggy: priorities.flaggy / fl
+        };
+      }
       const getFlaggyShop = getInput.bind(null, "flaggyShop");
 
       const createElem = function createElem(tagName, style=undefined) {
@@ -181,7 +229,7 @@
       window.f = {};
 
       window.boardRenderer = new BoardRenderer(ROWS, COLUMNS, "board");
-      window.spareRenderer = new BoardRenderer(40, 3, "spare", 5);
+      window.spareRenderer = new BoardRenderer(60, 3, "spare", 5);
       window.solver = new Solver();
       window.cogInvetory = new CogInventory();
 
@@ -228,11 +276,23 @@
 
           slider.classList.add("active");
           settingsPage.style.display = "";
-          settingsPage.style.left = borderElem.offsetLeft + "px";
-          settingsPage.style.height = borderElem.offsetHeight + "px";
         }
       })
-      
+
+      // Preset selector logic
+      const weightPresetSelect = document.getElementById("weightPreset");
+      const customWeightsDiv = document.getElementById("customWeights");
+      weightPresetSelect.addEventListener("change", () => {
+        const isCustom = weightPresetSelect.value === "custom";
+        customWeightsDiv.style.display = isCustom ? "" : "none";
+        if (!isCustom) {
+          const p = WEIGHT_PRESETS[weightPresetSelect.value];
+          document.getElementById("buildRate").value = p.buildRate;
+          document.getElementById("expBonus").value = p.expBonus;
+          document.getElementById("flaggy").value = p.flaggy;
+        }
+      });
+
       f.verifyBoardIntegrity = (board) => {
         for (let y = 0; y < board.length; y++) {
           for (let x = 0; x < board[y].length; x++) {
@@ -362,17 +422,74 @@
         console.log("Loading");
         // Fetch Gem-Shop flaggy upgrades
         document.getElementById("flaggyShop").value = cogInvetory.flaggyShopUpgrades;
-        sparePage.goto(0);
-        for (let i = 108; i < 200; i++) {
-          if (!cogInvetory.cogs[i]) continue;
+        // Compute actual spare page count from save data
+        const spareRows = Math.ceil((cogInvetory.spareSlotCount || 0) / 3);
+        const sparePages = Math.ceil(spareRows / 5) || 1;
+        sparePage.reset(sparePages, 0);
+        // Render all spare cogs (108+) including tiny cogs at 228+
+        const spareCogKeys = Object.keys(cogInvetory.cogs)
+          .map(Number)
+          .filter(k => k >= 108)
+          .sort((a, b) => a - b);
+        for (const i of spareCogKeys) {
           const index = (i - 108);
-          const row = Math.floor(index / 3); // 3 since the spare board has 3 columns per row
+          const row = Math.floor(index / 3);
           const col = index % 3;
           window.spareRenderer.set(row, col, cogInvetory.cogs[i]);
-        };
+        }
 
         const initScore = cogInvetory.score;
         f.printBoard(cogInvetory.board);
+
+        // Render tiny cog columns (keys 228-251: left 228-239, right 240-251)
+        const tinyLeft = document.getElementById("tinycogs-left");
+        const tinyRight = document.getElementById("tinycogs-right");
+        tinyLeft.innerHTML = "";
+        tinyRight.innerHTML = "";
+        const TINY_LEFT_START = 228, TINY_RIGHT_START = 240, TINY_PER_SIDE = 12;
+        const hasTinyCogs = Object.keys(cogInvetory.cogs).some(k => Number(k) >= TINY_LEFT_START);
+        if (hasTinyCogs) {
+          tinyLeft.style.display = "flex";
+          tinyRight.style.display = "flex";
+          document.getElementById("currentBoard").style.borderRight = "none";
+          const states = cogInvetory.tinyCogSlotStates || [];
+          const makeCol = (container, start, stateOffset) => {
+            for (let i = 0; i < TINY_PER_SIDE; i++) {
+              const key = start + i;
+              const cog = cogInvetory.cogs[key];
+              const state = states[stateOffset + i] || {};
+              const cell = createElem("div");
+              cell.style.width = "30px";
+              cell.style.height = "30px";
+              cell.style.backgroundSize = "cover";
+              cell.style.backgroundRepeat = "no-repeat";
+              cell.style.border = "1px solid black";
+              if (cog && cog.icon && cog.icon.type === "smallcog") {
+                cell.style.backgroundImage = `url("${cog.icon.path}"), url("assets/cog_bg.png")`;
+                cell.style.backgroundSize = "auto, cover";
+                cell.style.backgroundPosition = "center, center";
+                cell.style.backgroundRepeat = "no-repeat, no-repeat";
+              } else if (state.hasFlag) {
+                cell.style.backgroundImage = 'url("icons/cogs/flag.png")';
+                cell.style.backgroundSize = "cover";
+              } else if (!state.unlocked) {
+                cell.style.backgroundImage = 'url("assets/cog_blank.png")';
+                const lock = createElem("div");
+                lock.className = "lock-icon lock-icon-sm";
+                cell.appendChild(lock);
+              } else {
+                cell.style.backgroundImage = 'url("assets/cog_blank.png")';
+              }
+              container.appendChild(cell);
+            }
+          };
+          makeCol(tinyLeft, TINY_LEFT_START, 0);
+          makeCol(tinyRight, TINY_RIGHT_START, 12);
+        } else {
+          tinyLeft.style.display = "none";
+          tinyRight.style.display = "none";
+          document.getElementById("currentBoard").style.borderRight = "";
+        }
 
         document.getElementById("solve").disabled = "";
         document.getElementById("steps").innerHTML = "";
@@ -381,13 +498,34 @@
         document.getElementById("xpbonus").innerText = mmoifyNumber(initScore.expBonus * xpMult, false) + "%";
         document.getElementById("flaggyrate").innerText = mmoifyNumber(initScore.flaggy, false) + "/HR";
         
-        for (let oneOption of [...OPTIMIZABLE, "solveTime"]) {
+        for (let oneOption of [...OPTIMIZABLE, "solveTime", "solveIterations", "weightPreset"]) {
           const val = localStorage.getItem(oneOption);
           if (val) {
             document.getElementById(oneOption).value = val;
           }
         }
-        
+        // Sync custom weights visibility with stored preset
+        customWeightsDiv.style.display = document.getElementById("weightPreset").value === "custom" ? "" : "none";
+
+        // Auto-detect flaggy mode
+        const hintElem = document.getElementById("presetHint");
+        const presetSelect = document.getElementById("weightPreset");
+        if (cogInvetory.flagPose.length === 0) {
+          // No flags placed — flaggy is useless, solver will auto-zero it
+          hintElem.innerText = "(no flags placed, flaggy disabled)";
+          hintElem.style.color = "#999";
+        } else if (cogInvetory.lockedSlotsRemaining > 0) {
+          // Flags placed and slots to unlock — recommend flaggy push
+          hintElem.innerText = `(${cogInvetory.lockedSlotsRemaining} slots to unlock — Flaggy Push recommended)`;
+          hintElem.style.color = "#ffa18d";
+          if (!localStorage.getItem("weightPreset")) {
+            presetSelect.value = "flaggy";
+            customWeightsDiv.style.display = "none";
+          }
+        } else {
+          hintElem.innerText = "(all slots unlocked)";
+          hintElem.style.color = "#90ee90";
+        }
 
         openCogTab();
       }
@@ -473,34 +611,66 @@
 
       document.getElementById("solve").onclick = async () => {
         const solveTime = getInput("solveTime") || 2500;
+        const iterations = getInput("solveIterations") || 3;
+        const solveTextElem = document.getElementById("solvetext");
+
+        // Save settings
+        const priorities = getWeightPriorities();
         localStorage.setItem("solveTime", solveTime);
-        document.getElementById("solvetext").innerText = "Optimizing...";
+        localStorage.setItem("solveIterations", iterations);
+        localStorage.setItem("weightPreset", document.getElementById("weightPreset").value);
+        localStorage.setItem("buildRate", priorities.buildRate);
+        localStorage.setItem("expBonus", priorities.expBonus);
+        localStorage.setItem("flaggy", priorities.flaggy);
+
+        solveTextElem.innerText = "Optimizing...";
         document.getElementById("steps").innerHTML = "";
-        let lastYield = Date.now();
         await yield(); // Yield for DOM-Refresh
 
         console.log("Starting");
 
         let start = cogInvetory.clone();
-
         document.getElementById("start").innerText = `Starting BuildRate: ${start.score.buildRate}, EXP: ${start.score.expBonus}, Flaggy: ${start.score.flaggy}`;
-        const [buildRate, expBonus, flaggy] = [getInput("buildRate"), getInput("expBonus"), getInput("flaggy")];
-        localStorage.setItem("buildRate", buildRate);
-        localStorage.setItem("expBonus", expBonus);
-        localStorage.setItem("flaggy", flaggy);
-        solver.setWeights(getInput("buildRate"), getInput("expBonus"), getInput("flaggy"));
-        const best = await solver.solve(cogInvetory, solveTime);
+
+        // Run multiple iterations, keeping the best result
+        const playerCount = cogInvetory.playerCount || 10;
+        const flagCount = Math.max(cogInvetory.flagPose.length, 1);
+
+        // Convert priority percentages to solver weights based on current score magnitudes
+        const weights = prioritiesToWeights(priorities, start.score, playerCount, flagCount);
+        solver.setWeights(weights.buildRate, weights.expBonus, weights.flaggy);
+        let best = null;
+        let bestScore = -Infinity;
+        for (let i = 0; i < iterations; i++) {
+          solveTextElem.innerText = `Optimizing... (${i + 1}/${iterations})`;
+          await yield();
+          g.best = null; // Reset between iterations
+          const candidate = await solver.solve(cogInvetory, solveTime);
+          const score = solver.getScoreSum(candidate.score, playerCount, flagCount);
+          console.log(`Iteration ${i + 1}/${iterations}: score ${score}`);
+          if (score > bestScore) {
+            bestScore = score;
+            best = candidate;
+          }
+        }
+
         document.getElementById("end").innerText = `Final BuildRate: ${best.score.buildRate}, EXP: ${best.score.expBonus}, Flaggy: ${best.score.flaggy}`;
-        
+
         const xpMult = cogInvetory.tinyMultipliers ? cogInvetory.tinyMultipliers.expBonus : 1;
-        document.getElementById("buildrate").innerText = `${mmoifyNumber(best.score.buildRate - start.score.buildRate)}/HR`;
-        document.getElementById("xpbonus").innerText = `${mmoifyNumber((best.score.expBonus - start.score.expBonus) * xpMult)}%`;
-        document.getElementById("flaggyrate").innerText = `${mmoifyNumber(best.score.flaggy - start.score.flaggy)}/HR`;
-        
+        const brDelta = best.score.buildRate - start.score.buildRate;
+        const xpDelta = (best.score.expBonus - start.score.expBonus) * xpMult;
+        const flDelta = best.score.flaggy - start.score.flaggy;
+        const brSign = brDelta >= 0 ? "+" : "";
+        const xpSign = xpDelta >= 0 ? "+" : "";
+        const flSign = flDelta >= 0 ? "+" : "";
+        document.getElementById("buildrate").innerText = `${mmoifyNumber(best.score.buildRate, false)}/HR (${brSign}${mmoifyNumber(brDelta)})`;
+        document.getElementById("xpbonus").innerText = `${mmoifyNumber(best.score.expBonus * xpMult, false)}% (${xpSign}${mmoifyNumber(xpDelta)})`;
+        document.getElementById("flaggyrate").innerText = `${mmoifyNumber(best.score.flaggy, false)}/HR (${flSign}${mmoifyNumber(flDelta)})`;
+
         optimalSteps = f.getOptimalSteps(best.board, best.cogs);
         f.printOptimalSteps(optimalSteps);
         if (document.getElementById("showSolved").checked) {
-          // Show solved board 
+          // Show solved board
           f.printBoard(best.board);
           stepsPage.reset(optimalSteps.length, optimalSteps.length - 1);
         } else {
@@ -508,7 +678,14 @@
           stepsPage.reset(optimalSteps.length, 0);
         }
 
-        document.getElementById("solvetext").innerText = "Solve";
+        // Update cogInvetory to solved state so re-solving is stable
+        window.cogInvetory = best;
+        for (const cog of Object.values(cogInvetory.cogs)) {
+          cog.initialKey = cog.key;
+        }
+        g.best = null;
+
+        solveTextElem.innerText = "Solve";
         openCogTab();
       };
     

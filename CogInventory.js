@@ -273,8 +273,8 @@ class CogInventory {
         const parsed = c.match(/^CogCry([0-5])$/);
         icon.path = "icons/cogs/" + "Crystal_" + Crystal_MAP[parsed[1]] + ".png";
       } else if (c.startsWith("CogSm")) {
-        icon.type = "cog";
-        icon.path = "assets/cog_blank.png";
+        icon.type = "smallcog";
+        icon.path = "icons/cogs/" + c + ".png";
       } else {
         icon.type = "cog";
         const parsed=c.match(/^Cog([0123YZ])(.{2,3})$/);
@@ -326,10 +326,40 @@ class CogInventory {
         blocked: false
       });
     });
+    // Add tiny cogs that exist in CogO but not in CogM (display only, no stats)
+    const cogArrayKeys = new Set(cogArray.map(c => c.key));
+    cogOArray.forEach((name, i) => {
+      if (name && name.startsWith("CogSm") && !cogArrayKeys.has(i)) {
+        cogArray.push(new Cog({
+          key: i,
+          icon: cogIcons[i] || "Blank",
+          fixed: true,
+          blocked: false
+        }));
+      }
+    });
     // Get the available board
+    const cogInventoryExpansions = JSON.parse(save["GemItemsPurchased"])[116] || 0;
+    this.spareSlotCount = 96 + cogInventoryExpansions * 4;
     this.playerCount = playerNames ? playerNames.length : 10;
     this.flagPose = JSON.parse(save["FlagP"]).filter(v=>v>=0); // Only first 4 are used
-    const slots = JSON.parse(save["FlagU"]).map((n, i) => {
+    const flagUArray = JSON.parse(save["FlagU"]);
+    // Count locked slots that still need flaggy to unlock (main board 0-95 + extra columns 96-119)
+    const FLAGGY_SLOT_COUNT = 120; // 96 main board + 24 extra column slots
+    this.lockedSlotsRemaining = flagUArray.slice(0, FLAGGY_SLOT_COUNT).filter((n, i) => n !== -11 && !this.flagPose.includes(i)).length;
+    // Tiny cog slot states: left = FlagU[96..107], right = FlagU[108..119]
+    this.tinyCogSlotStates = [];
+    for (let i = 0; i < 24; i++) {
+      const flagIdx = 96 + i;
+      const flagVal = flagUArray[flagIdx];
+      const hasFlag = this.flagPose.includes(flagIdx);
+      this.tinyCogSlotStates.push({
+        unlocked: flagVal === -11,
+        hasFlag: hasFlag,
+        unlocking: flagVal > 0 && !hasFlag
+      });
+    }
+    const slots = flagUArray.map((n, i) => {
       if (n > 0 && this.flagPose.includes(i)) return new Cog({ key: i, fixed: true, blocked: true, isFlag: true, icon: "Blank" });
       if (n !== -11) return new Cog({ key: i, fixed: true, blocked: true });
       return new Cog({ key: i, icon: "Blank" });
@@ -363,6 +393,8 @@ class CogInventory {
     res.flagPose = [...this.flagPose];
     res.flaggyShopUpgrades = this.flaggyShopUpgrades;
     res.playerCount = this.playerCount;
+    res.spareSlotCount = this.spareSlotCount;
+    res.lockedSlotsRemaining = this.lockedSlotsRemaining;
     res.tinyMultipliers = this.tinyMultipliers ? { ...this.tinyMultipliers } : { buildRate: 1, expBonus: 1, flaggy: 1 };
     res.availableSlotKeys = [...this.availableSlotKeys];
     return res;

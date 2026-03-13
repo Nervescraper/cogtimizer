@@ -300,6 +300,24 @@ table.cogboard tr > td {
     opacity: 0.2;
 }
 
+.lock-icon {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    opacity: 0.5;
+}
+
+.lock-icon::after {
+    content: "\1F512";
+}
+
+.lock-icon-sm {
+    font-size: 16px;
+}
+
 .info {
     background: url("assets/wooden_light.png") top right;
     padding: 1em 1em 0 1em;
@@ -309,13 +327,15 @@ table.cogboard tr > td {
 #settings {
     background-image: url("assets/settingsbg.png");
     padding: 0 1em;
-    border-right: 2px solid black;
-    position: absolute;
-    z-index: 1;
+    border-left: 2px solid black;
 }
 
 #currentBoard {
-    padding: 1em 0 0 1em;
+    padding: 1em 0 0 0;
+    border-right: 4px solid #b47848;
+}
+
+#tinycogs-right {
     border-right: 4px solid #b47848;
 }
 
