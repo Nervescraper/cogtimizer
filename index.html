@@ -131,6 +131,7 @@
         </div>
       </div>
     </div>
+    <p id="tiny-cog-note" style="display:none; font-size:0.85em; opacity:0.7; margin:4px 0;">Note: The solver does not currently adjust tiny cogs. Adjust those manually for best results.</p>
     <p id="start"></p>
     <div id="balanced-details"></div>
     <span id="end"></span>
@@ -887,6 +888,7 @@
 
           const originalScore = window.originalCogInventory.score;
           document.getElementById("start").innerText = `Starting BuildRate: ${mmoifyNumber(originalScore.buildRate, false)}/HR, EXP: ${formatXp(originalScore.expBonus)}%, Flaggy: ${mmoifyNumber(originalScore.flaggy, false)}/HR`;
+          document.getElementById("tiny-cog-note").style.display = "";
 
           const playerCount = cogInvetory.playerCount || 10;
           const flagCount = Math.max(cogInvetory.flagPose.length, 1);
