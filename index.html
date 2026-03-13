@@ -91,6 +91,7 @@
             <select id="weightPreset" style="width:16ch">
               <option value="longterm" selected>Long-term</option>
               <option value="flaggy">Flaggy Push</option>
+              <option value="balanced">Balanced</option>
               <option value="custom">Custom</option>
             </select>
             <span id="presetHint" style="font-size:0.8em; margin-left:4px;"></span>
@@ -131,6 +132,7 @@
       </div>
     </div>
     <p id="start"></p>
+    <div id="balanced-details"></div>
     <p id="end"></p>
     <script type="text/javascript">
       function createSwitchAnimation() {
@@ -285,7 +287,7 @@
       weightPresetSelect.addEventListener("change", () => {
         const isCustom = weightPresetSelect.value === "custom";
         customWeightsDiv.style.display = isCustom ? "" : "none";
-        if (!isCustom) {
+        if (!isCustom && WEIGHT_PRESETS[weightPresetSelect.value]) {
           const p = WEIGHT_PRESETS[weightPresetSelect.value];
           document.getElementById("buildRate").value = p.buildRate;
           document.getElementById("expBonus").value = p.expBonus;
@@ -610,16 +612,38 @@
         }
       }
 
+      // Run solver with current weights for the given number of iterations
+      async function runSolveIterations(inventory, solveTime, iterations, statusFn) {
+        const playerCount = inventory.playerCount || 10;
+        const flagCount = Math.max(inventory.flagPose.length, 1);
+        let best = null;
+        let bestScore = -Infinity;
+        for (let i = 0; i < iterations; i++) {
+          if (statusFn) statusFn(i, iterations);
+          await yield();
+          g.best = null;
+          const candidate = await solver.solve(inventory, solveTime);
+          const score = solver.getScoreSum(candidate.score, playerCount, flagCount);
+          console.log(`Iteration ${i + 1}/${iterations}: score ${score}`);
+          if (score > bestScore) {
+            bestScore = score;
+            best = candidate;
+          }
+        }
+        return best;
+      }
+
       document.getElementById("solve").onclick = async () => {
         const solveTime = getInput("solveTime") || 2500;
         const iterations = getInput("solveIterations") || 3;
         const solveTextElem = document.getElementById("solvetext");
+        const preset = document.getElementById("weightPreset").value;
 
         // Save settings
         const priorities = getWeightPriorities();
         localStorage.setItem("solveTime", solveTime);
         localStorage.setItem("solveIterations", iterations);
-        localStorage.setItem("weightPreset", document.getElementById("weightPreset").value);
+        localStorage.setItem("weightPreset", preset);
         localStorage.setItem("buildRate", priorities.buildRate);
         localStorage.setItem("expBonus", priorities.expBonus);
         localStorage.setItem("flaggy", priorities.flaggy);
@@ -632,31 +656,83 @@
 
         let start = cogInvetory.clone();
         const originalScore = window.originalCogInventory.score;
-        document.getElementById("start").innerText = `Starting BuildRate: ${originalScore.buildRate}, EXP: ${originalScore.expBonus}, Flaggy: ${originalScore.flaggy}`;
+        document.getElementById("start").innerText = `Starting BuildRate: ${mmoifyNumber(originalScore.buildRate, false)}/HR, EXP: ${mmoifyNumber(originalScore.expBonus, false)}%, Flaggy: ${mmoifyNumber(originalScore.flaggy, false)}/HR`;
 
-        // Run multiple iterations, keeping the best result
         const playerCount = cogInvetory.playerCount || 10;
         const flagCount = Math.max(cogInvetory.flagPose.length, 1);
+        let best;
 
-        // Convert priority percentages to solver weights based on current score magnitudes
-        const weights = prioritiesToWeights(priorities, start.score, playerCount, flagCount);
-        solver.setWeights(weights.buildRate, weights.expBonus, weights.flaggy);
-        let best = null;
-        let bestScore = -Infinity;
-        for (let i = 0; i < iterations; i++) {
-          solveTextElem.innerText = `Optimizing... (${i + 1}/${iterations})`;
-          await yield();
-          g.best = null; // Reset between iterations
-          const candidate = await solver.solve(cogInvetory, solveTime);
-          const score = solver.getScoreSum(candidate.score, playerCount, flagCount);
-          console.log(`Iteration ${i + 1}/${iterations}: score ${score}`);
-          if (score > bestScore) {
-            bestScore = score;
-            best = candidate;
+        document.getElementById("balanced-details").innerHTML = "";
+        document.getElementById("end").innerText = "";
+
+        if (preset === "balanced") {
+          // Phase 1: Find individual bests for each stat
+          const statNames = ["buildRate", "expBonus", "flaggy"];
+          const statLabels = ["Build Rate", "XP Bonus", "Flaggy"];
+          const statUnits = ["/HR", "%", "/HR"];
+          const individualBests = {};
+          const noFlags = cogInvetory.flagPose.length === 0;
+          const detailsDiv = document.getElementById("balanced-details");
+
+          for (let s = 0; s < statNames.length; s++) {
+            const stat = statNames[s];
+            if (stat === "flaggy" && noFlags) {
+              individualBests[stat] = 0;
+              const p = document.createElement("p");
+              p.innerText = `Best ${statLabels[s]}: skipped (no flags)`;
+              detailsDiv.appendChild(p);
+              continue;
+            }
+            solveTextElem.innerText = `Finding best ${statLabels[s]}...`;
+            await yield();
+            // Use raw weights (not normalized) so the solver's temperature scaling works
+            const w = { buildRate: 0, expBonus: 0, flaggy: 0 };
+            w[stat] = 1;
+            solver.setWeights(w.buildRate, w.expBonus, w.flaggy);
+            const result = await runSolveIterations(cogInvetory, solveTime, iterations, (i, n) => {
+              solveTextElem.innerText = `Finding best ${statLabels[s]}... (${i + 1}/${n})`;
+            });
+            individualBests[stat] = result.score[stat];
+            console.log(`Best ${stat}: ${individualBests[stat]}`);
+            const p = document.createElement("p");
+            p.innerText = `Best ${statLabels[s]}: ${mmoifyNumber(individualBests[stat], false)}${statUnits[s]}`;
+            detailsDiv.appendChild(p);
           }
-        }
 
-        document.getElementById("end").innerText = `Final BuildRate: ${best.score.buildRate}, EXP: ${best.score.expBonus}, Flaggy: ${best.score.flaggy}`;
+          // Phase 2: Solve with targets at 90% of individual bests
+          const TARGET_PCT = 0.9;
+          const targets = {
+            buildRate: individualBests.buildRate * TARGET_PCT,
+            expBonus: individualBests.expBonus * TARGET_PCT * (start.score.expBoost + playerCount) / playerCount,
+            flaggy: (noFlags ? 0 : individualBests.flaggy * TARGET_PCT) * (start.score.flagBoost + flagCount) / flagCount
+          };
+          console.log("Individual bests:", individualBests);
+          console.log("Targets (90%):", targets);
+
+          solveTextElem.innerText = "Finding balanced solution...";
+          await yield();
+          solver.setWeights(1, 1, 1);
+          solver.setTargets(targets);
+          best = await runSolveIterations(cogInvetory, solveTime, iterations, (i, n) => {
+            solveTextElem.innerText = `Finding balanced solution... (${i + 1}/${n})`;
+          });
+          solver.setTargets(null);
+
+          // Report threshold hits
+          const pctBr = individualBests.buildRate > 0 ? (best.score.buildRate / individualBests.buildRate * 100).toFixed(0) : 100;
+          const pctXp = individualBests.expBonus > 0 ? (best.score.expBonus / individualBests.expBonus * 100).toFixed(0) : 100;
+          const pctFl = individualBests.flaggy > 0 ? (best.score.flaggy / individualBests.flaggy * 100).toFixed(0) : 100;
+          console.log(`Balanced result: BR ${pctBr}%, XP ${pctXp}%, FL ${pctFl}% of individual bests`);
+          document.getElementById("end").innerText = `Balanced: ${mmoifyNumber(best.score.buildRate, false)}/HR (${pctBr}%), ${mmoifyNumber(best.score.expBonus, false)}% (${pctXp}%), ${mmoifyNumber(best.score.flaggy, false)}/HR (${pctFl}%)`;
+        } else {
+          // Standard weighted solve
+          const weights = prioritiesToWeights(priorities, start.score, playerCount, flagCount);
+          solver.setWeights(weights.buildRate, weights.expBonus, weights.flaggy);
+          best = await runSolveIterations(cogInvetory, solveTime, iterations, (i, n) => {
+            solveTextElem.innerText = `Optimizing... (${i + 1}/${n})`;
+          });
+          document.getElementById("end").innerText = `Final BuildRate: ${mmoifyNumber(best.score.buildRate, false)}/HR, EXP: ${mmoifyNumber(best.score.expBonus, false)}%, Flaggy: ${mmoifyNumber(best.score.flaggy, false)}/HR`;
+        }
 
         const xpMult = cogInvetory.tinyMultipliers ? cogInvetory.tinyMultipliers.expBonus : 1;
         const brDelta = best.score.buildRate - originalScore.buildRate;

@@ -13,9 +13,27 @@ class Solver {
       expBonus: expBonus,
       flaggy: flaggy
     }
+    this.targets = null;
   }
-  
+
+  setTargets(targets) {
+    this.targets = targets; // { buildRate, expBonus, flaggy }
+  }
+
   getScoreSum(score, playerCount, flagCount) {
+    if (this.targets) {
+      // Target-based scoring: each stat contributes min(actual/target, 1.0)
+      // Stats below threshold are prioritized; stats above stop contributing
+      let res = 0;
+      const br = this.targets.buildRate > 0 ? Math.min(score.buildRate / this.targets.buildRate, 1.0) : 1.0;
+      const xpEff = score.expBonus * (score.expBoost + playerCount) / playerCount;
+      const xp = this.targets.expBonus > 0 ? Math.min(xpEff / this.targets.expBonus, 1.0) : 1.0;
+      const flEff = score.flaggy * (score.flagBoost + flagCount) / flagCount;
+      const fl = this.targets.flaggy > 0 ? Math.min(flEff / this.targets.flaggy, 1.0) : 1.0;
+      // Use product so missing any one target tanks the score (encourages balance)
+      res = br * xp * fl;
+      return res;
+    }
     let res = 0;
     res += score.buildRate * this.weights.buildRate;
     res += score.expBonus * this.weights.expBonus * (score.expBoost + playerCount) / playerCount;
@@ -45,7 +63,9 @@ class Solver {
     const allSlots = inventory.availableSlotKeys;
     let counter = 0;
     let currentScore = this.getScoreSum(state.score, playerCount, flagCount);
-    let temperature = Math.max(Math.abs(currentScore) * 0.05, 100);
+    let temperature = this.targets
+      ? 0.05  // Target mode scores are 0-1, so use a small temperature
+      : Math.max(Math.abs(currentScore) * 0.05, 100);
     const coolingRate = 0.9997;
 
     console.log("Trying to optimize");
@@ -60,7 +80,9 @@ class Solver {
         state = inventory.clone();
         this.shuffle(state);
         currentScore = this.getScoreSum(state.score, playerCount, flagCount);
-        temperature = Math.max(Math.abs(currentScore) * 0.05, 100);
+        temperature = this.targets
+          ? 0.05
+          : Math.max(Math.abs(currentScore) * 0.05, 100);
         solutions.push(state);
       }
       const slotKey = allSlots[Math.floor(Math.random() * allSlots.length)];
