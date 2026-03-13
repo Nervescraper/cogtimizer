@@ -276,3 +276,54 @@ describe('cogsAreEquivalent', () => {
   });
 
 });
+
+describe('getOptimalSteps — equivalence elimination', () => {
+
+  it('eliminates swap of two identical cogs', () => {
+    // A and B have identical stats/icon, swapped positions — should produce 0 steps
+    const icon = { path: 'icons/cogs/Cog_Nooby.png' };
+    const cogs = cogDict([
+      makeCog(1, 0, { buildRate: 10, expBonus: 5, flaggy: 3, icon }),
+      makeCog(0, 1, { buildRate: 10, expBonus: 5, flaggy: 3, icon }),
+    ]);
+    const steps = getOptimalSteps(BOARD, cogs);
+    assert.strictEqual(steps.length, 0);
+  });
+
+  it('keeps swap of two different cogs', () => {
+    const cogs = cogDict([
+      makeCog(1, 0, { buildRate: 10 }),
+      makeCog(0, 1, { buildRate: 20 }),
+    ]);
+    const steps = getOptimalSteps(BOARD, cogs);
+    assert.strictEqual(steps.length, 1);
+  });
+
+  it('preserves 3-cycle even when two cogs in it are identical', () => {
+    // A(0->1), B(1->2), C(2->0). A and B are identical but this is a 3-cycle, not a 2-swap.
+    const icon = { path: 'icons/cogs/Cog_Nooby.png' };
+    const cogs = cogDict([
+      makeCog(1, 0, { buildRate: 10, icon }),
+      makeCog(2, 1, { buildRate: 10, icon }),
+      makeCog(0, 2, { buildRate: 30 }),
+    ]);
+    const steps = getOptimalSteps(BOARD, cogs);
+    assert.strictEqual(steps.length, 2);
+  });
+
+  it('eliminates one pair while keeping other moves', () => {
+    // Pair: A(0->1) and B(1->0) are identical — eliminated
+    // Move: C(10->11) is a real move — kept
+    const icon = { path: 'icons/cogs/Cog_Nooby.png' };
+    const cogs = cogDict([
+      makeCog(1, 0, { buildRate: 10, icon }),
+      makeCog(0, 1, { buildRate: 10, icon }),
+      makeCog(11, 10, { buildRate: 50 }),
+    ]);
+    const steps = getOptimalSteps(BOARD, cogs);
+    assert.strictEqual(steps.length, 1);
+    assert.strictEqual(steps[0].keyFrom, 10);
+    assert.strictEqual(steps[0].keyTo, 11);
+  });
+
+});

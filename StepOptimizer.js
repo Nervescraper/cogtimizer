@@ -29,6 +29,26 @@ function getOptimalSteps(board, cogs) {
     interimCogs[cog.initialKey] = cog;
   }
 
+  // Eliminate 2-cycles of equivalent cogs (they cancel out)
+  const interimKeys = Object.keys(interimCogs);
+  const eliminated = new Set();
+  for (const key of interimKeys) {
+    if (eliminated.has(key)) continue;
+    const cogA = interimCogs[key];
+    const otherKey = String(cogA.key);
+    const cogB = interimCogs[otherKey];
+    // Check: is this a direct 2-swap (A at B's original pos, B at A's original pos)?
+    // Only eliminate if at least one cog has meaningful stats (avoids eliminating blank-cog swaps)
+    const hasMeaningfulStats = (cogA.buildRate || cogA.expBonus || cogA.flaggy);
+    if (cogB && String(cogB.key) === key && hasMeaningfulStats && cogsAreEquivalent(cogA, cogB)) {
+      eliminated.add(key);
+      eliminated.add(otherKey);
+    }
+  }
+  for (const key of eliminated) {
+    delete interimCogs[key];
+  }
+
   // Multi-step movements
   let tuple;
   while (tuple = Object.entries(interimCogs)[0]) {
