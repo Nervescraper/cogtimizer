@@ -19,103 +19,56 @@ function cogsAreEquivalent(a, b) {
 }
 
 function getOptimalSteps(board, cogs) {
+  const allCogs = Object.values(cogs).map(c => new Cog(c));
+
+  // Lookup: initialKey → Cog object
+  const cogByIk = {};
+  for (const cog of allCogs) {
+    cogByIk[cog.initialKey] = cog;
+  }
+
+  // solution[pos] = initialKey of the cog that belongs at board position pos
+  const solution = {};
+  for (const cog of allCogs) {
+    if (cog.key < 96) {
+      solution[cog.key] = cog.initialKey;
+    }
+  }
+
+  // Tracking state — each cog starts at its initialKey
+  const current = {};  // pos → initialKey (undefined = blank)
+  const posOf = {};    // initialKey → pos
+  for (const cog of allCogs) {
+    current[cog.initialKey] = cog.initialKey;
+    posOf[cog.initialKey] = cog.initialKey;
+  }
+
+  // Selection sort over board positions 0–95
   const steps = [];
+  for (let p = 0; p < 96; p++) {
+    const targetIk = solution[p];
+    if (targetIk === undefined) continue;
+    if (current[p] === targetIk) continue;
 
-  const cogsToMove = Object.values(cogs)
-    .map(c => { return new Cog(c) })
-    .filter((c) => c.key !== c.initialKey);
+    const srcPos = posOf[targetIk];
+    const displacedIk = current[p];
 
-  const interimCogs = {};
-  for (const cog of cogsToMove) {
-    interimCogs[cog.initialKey] = cog;
+    const cog = cogByIk[targetIk];
+    const targetCog = displacedIk !== undefined && cogByIk[displacedIk]
+      ? cogByIk[displacedIk]
+      : { icon: "Blank", key: p, position: cog.position.bind(cog) };
+
+    steps.push({ board, cog, targetCog, keyFrom: p, keyTo: srcPos });
+
+    // Update tracking
+    current[p] = targetIk;
+    current[srcPos] = displacedIk;
+    posOf[targetIk] = p;
+    if (displacedIk !== undefined) posOf[displacedIk] = srcPos;
   }
 
-  // Eliminate 2-cycles of equivalent cogs (they cancel out)
-  const interimKeys = Object.keys(interimCogs);
-  const eliminated = new Set();
-  for (const key of interimKeys) {
-    if (eliminated.has(key)) continue;
-    const cogA = interimCogs[key];
-    const otherKey = String(cogA.key);
-    const cogB = interimCogs[otherKey];
-    // Check: is this a direct 2-swap (A at B's original pos, B at A's original pos)?
-    if (cogB && String(cogB.key) === key && cogsAreEquivalent(cogA, cogB)) {
-      eliminated.add(key);
-      eliminated.add(otherKey);
-    }
-  }
-  for (const key of eliminated) {
-    delete interimCogs[key];
-  }
-
-  // Multi-step movements — tag each step with its cycleId for sorting
-  let cycleId = 0;
-  let tuple;
-  while (tuple = Object.entries(interimCogs)[0]) {
-    const [key, cog] = tuple;
-    const targetCog = interimCogs[cog.key] || { icon: "Blank", key, position: cog.position.bind(cog) };
-    if (targetCog === cog) {
-      delete interimCogs[key];
-      cycleId++;
-      continue;
-    }
-    interimCogs[key] = targetCog;
-    steps.push({
-      board,
-      cog,
-      targetCog,
-      keyFrom: Number.parseInt(key),
-      keyTo: Number.parseInt(cog.key),
-      cycleId
-    });
-    delete interimCogs[cog.key];
-  }
-
-  // Geographic sort — reorder cycles, preserving intra-cycle step order
-  const SPARE_START = 108;
-  const BUILD_START = 96;
-  const BUILD_END = 107;
-
-  function cycleSortKey(step) {
-    const kf = step.keyFrom;
-    const kt = step.keyTo;
-    // Classification priority: spare first, then build, then board
-    if (kf >= SPARE_START || kt >= SPARE_START) {
-      const spareKey = kf >= SPARE_START ? kf : kt;
-      const otherKey = kf >= SPARE_START ? kt : kf;
-      return { bucket: 2, primary: spareKey, secondary: otherKey };
-    }
-    if ((kf >= BUILD_START && kf <= BUILD_END) || (kt >= BUILD_START && kt <= BUILD_END)) {
-      return { bucket: 1, primary: Math.min(kf, kt), secondary: 0 };
-    }
-    return { bucket: 0, primary: Math.min(kf, kt), secondary: 0 };
-  }
-
-  // Group steps by cycleId, compute sort key from first step of each cycle
-  const cycleMap = new Map();
-  for (const step of steps) {
-    if (!cycleMap.has(step.cycleId)) {
-      cycleMap.set(step.cycleId, { steps: [], sortKey: cycleSortKey(step) });
-    }
-    cycleMap.get(step.cycleId).steps.push(step);
-  }
-
-  // Sort cycles by bucket, then primary, then secondary
-  const sortedCycles = [...cycleMap.values()].sort((a, b) => {
-    if (a.sortKey.bucket !== b.sortKey.bucket) return a.sortKey.bucket - b.sortKey.bucket;
-    if (a.sortKey.primary !== b.sortKey.primary) return a.sortKey.primary - b.sortKey.primary;
-    return a.sortKey.secondary - b.sortKey.secondary;
-  });
-
-  // Flatten back to step array, preserving intra-cycle order
-  steps.length = 0;
-  for (const cycle of sortedCycles) {
-    for (const step of cycle.steps) {
-      steps.push(step);
-    }
-  }
-
-  return steps;
+  // Post-processing: filter out swaps of equivalent cogs
+  return steps.filter(step => !cogsAreEquivalent(step.cog, step.targetCog));
 }
 
 if (typeof module !== 'undefined' && module.exports) {
