@@ -1,3 +1,7 @@
+if (typeof require !== 'undefined') {
+  var { getBoostPositions } = require('./BoostPositions.js');
+}
+
 const ICON_QUALITY_MAP = {
   ["0"]: "Nooby",
   ["1"]: "Decent",
@@ -420,56 +424,8 @@ class CogInventory {
     for (let key of this.availableSlotKeys) {
       const entry = this.get(key);
       if (!entry.boostRadius) continue;
-      const boosted = [];
       const { x: j, y: i } = entry.position();
-      switch (entry.boostRadius) {
-        case "diagonal":
-          boosted.push([i-1, j-1],[i-1, j+1],[i+1, j-1],[i+1, j+1]);
-          break;
-        case "adjacent":
-          boosted.push([i-1, j],[i, j+1],[i+1, j],[i, j-1]);
-          break;
-        case "up":
-          boosted.push([i-2, j-1],[i-2, j],[i-2, j+1],[i-1, j-1],[i-1, j],[i-1, j+1]);
-          break;
-        case "right":
-          boosted.push([i-1, j+2],[i, j+2],[i+1, j+2],[i-1, j+1],[i, j+1],[i+1, j+1]);
-          break;
-        case "down":
-          boosted.push([i+2, j-1],[i+2, j],[i+2, j+1],[i+1, j-1],[i+1, j],[i+1, j+1]);
-          break;
-        case "left":
-          boosted.push([i-1, j-2],[i, j-2],[i+1, j-2],[i-1, j-1],[i, j-1],[i+1, j-1]);
-          break;
-        case "row":
-          for (let k = 0; k < INV_COLUMNS; k++) {
-            if(j == k) continue;
-            boosted.push([i, k]);
-          }
-          break;
-        case "column":
-          for (let k = 0; k < INV_ROWS; k++) {
-            if(i == k) continue;
-            boosted.push([k, j]);
-          }
-          break;
-        case "corners":
-          boosted.push([i-2, j-2],[i-2, j+2],[i+2, j-2],[i+2, j+2]);
-          break;
-        case "around":
-          boosted.push([i-2, j],[i-1, j-1],[i-1, j],[i-1, j+1],[i, j-2],[i, j-1],[i, j+1],[i, j+2],[i+1, j-1],[i+1, j],[i+1, j+1],[i+2, j]);
-          break;
-        case "everything":
-          for (let k = 0; k < INV_ROWS; k++) {
-            for (let l = 0; l < INV_COLUMNS; l++) {
-              if(i === k && j === l) continue;
-              boosted.push([k, l]);
-            }
-          }
-          break;
-        default:
-          break;
-      }
+      const boosted = getBoostPositions(entry.boostRadius, i, j);
       for (const boostCord of boosted) {
         const bonus = CogInventory._saveGet(bonusGrid, ...boostCord);
         if (!bonus) continue;
