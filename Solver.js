@@ -2,11 +2,37 @@ function yield() {
   return new Promise(r=>setTimeout(r,1));
 }
 
+/**
+ * Compute a single scalar score from the five-field score object.
+ * Standalone version for use by all solver algorithms.
+ * @param {Object} score - { buildRate, expBonus, flaggy, expBoost, flagBoost }
+ * @param {Object} weights - { buildRate, expBonus, flaggy }
+ * @param {Object|null} targets - { buildRate, expBonus, flaggy } or null
+ * @param {number} playerCount
+ * @param {number} flagCount
+ * @returns {number}
+ */
+function getScoreSum(score, weights, targets, playerCount, flagCount) {
+  if (targets) {
+    const br = targets.buildRate > 0 ? Math.min(score.buildRate / targets.buildRate, 1.0) : 1.0;
+    const xpEff = score.expBonus * (score.expBoost + playerCount) / playerCount;
+    const xp = targets.expBonus > 0 ? Math.min(xpEff / targets.expBonus, 1.0) : 1.0;
+    const flEff = score.flaggy * (score.flagBoost + flagCount) / flagCount;
+    const fl = targets.flaggy > 0 ? Math.min(flEff / targets.flaggy, 1.0) : 1.0;
+    return br * xp * fl;
+  }
+  let res = 0;
+  res += score.buildRate * weights.buildRate;
+  res += score.expBonus * weights.expBonus * (score.expBoost + playerCount) / playerCount;
+  res += score.flaggy * weights.flaggy * (score.flagBoost + flagCount) / flagCount;
+  return res;
+}
+
 class Solver {
   constructor(weights={}) {
     this.setWeights(weights.buildRate, weights.expBonus, weights.flaggy)
   }
-  
+
   setWeights(buildRate, expBonus, flaggy) {
     this.weights = {
       buildRate: buildRate,
@@ -21,24 +47,7 @@ class Solver {
   }
 
   getScoreSum(score, playerCount, flagCount) {
-    if (this.targets) {
-      // Target-based scoring: each stat contributes min(actual/target, 1.0)
-      // Stats below threshold are prioritized; stats above stop contributing
-      let res = 0;
-      const br = this.targets.buildRate > 0 ? Math.min(score.buildRate / this.targets.buildRate, 1.0) : 1.0;
-      const xpEff = score.expBonus * (score.expBoost + playerCount) / playerCount;
-      const xp = this.targets.expBonus > 0 ? Math.min(xpEff / this.targets.expBonus, 1.0) : 1.0;
-      const flEff = score.flaggy * (score.flagBoost + flagCount) / flagCount;
-      const fl = this.targets.flaggy > 0 ? Math.min(flEff / this.targets.flaggy, 1.0) : 1.0;
-      // Use product so missing any one target tanks the score (encourages balance)
-      res = br * xp * fl;
-      return res;
-    }
-    let res = 0;
-    res += score.buildRate * this.weights.buildRate;
-    res += score.expBonus * this.weights.expBonus * (score.expBoost + playerCount) / playerCount;
-    res += score.flaggy * this.weights.flaggy * (score.flagBoost + flagCount) / flagCount;
-    return res;
+    return getScoreSum(score, this.weights, this.targets, playerCount, flagCount);
   }
   
   static _yield() {
@@ -159,4 +168,8 @@ class Solver {
       }
     }
   }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { Solver, getScoreSum };
 }
