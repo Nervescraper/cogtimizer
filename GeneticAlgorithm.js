@@ -8,6 +8,7 @@ if (typeof require !== 'undefined') {
   var CogInventory = _cogMod.CogInventory;
   var Cog = _cogMod.Cog;
   var { IncrementalScorer } = require('./IncrementalScorer.js');
+  var { getScoreSum } = require('./Solver.js');
 }
 
 var GA_DEFAULTS = {
@@ -241,19 +242,7 @@ class GeneticAlgorithm {
   _scoreIndividual(individual, playerCount, flagCount, weights, targets) {
     var tempScorer = new IncrementalScorer(individual);
     var raw = tempScorer.fullRecompute();
-
-    if (targets) {
-      var br = targets.buildRate > 0 ? Math.min(raw.buildRate / targets.buildRate, 1.0) : 1.0;
-      var xpEff = raw.expBonus * (raw.expBoost + playerCount) / playerCount;
-      var xp = targets.expBonus > 0 ? Math.min(xpEff / targets.expBonus, 1.0) : 1.0;
-      var flEff = raw.flaggy * (raw.flagBoost + flagCount) / flagCount;
-      var fl = targets.flaggy > 0 ? Math.min(flEff / targets.flaggy, 1.0) : 1.0;
-      return br * xp * fl;
-    }
-    var res = raw.buildRate * (weights.buildRate || 0);
-    res += raw.expBonus * (weights.expBonus || 0) * (raw.expBoost + playerCount) / playerCount;
-    res += raw.flaggy * (weights.flaggy || 0) * (raw.flagBoost + flagCount) / flagCount;
-    return res;
+    return getScoreSum(raw, weights, targets, playerCount, flagCount);
   }
 
   /**

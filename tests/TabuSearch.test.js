@@ -195,8 +195,11 @@ describe('TabuSearch — reproducibility', () => {
         perturbSize: 2,
         rng: makeDetRng(seed),
       });
-      ts.solve(scorer, 200, null);
-      Date.now = origDateNow;
+      try {
+        ts.solve(scorer, 200, null);
+      } finally {
+        Date.now = origDateNow;
+      }
       return { hash, swapCount };
     }
 

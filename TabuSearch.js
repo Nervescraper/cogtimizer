@@ -2,6 +2,7 @@
 if (typeof require !== 'undefined') {
   var _tabuListMod = require('./TabuList.js');
   TabuList = _tabuListMod.TabuList;
+  var { getScoreSum } = require('./Solver.js');
 }
 
 /**
@@ -52,19 +53,7 @@ class TabuSearch {
    * @returns {number}
    */
   _scalarScore(score, playerCount, flagCount) {
-    if (this._targets) {
-      var br = this._targets.buildRate > 0 ? Math.min(score.buildRate / this._targets.buildRate, 1.0) : 1.0;
-      var xpEff = score.expBonus * (score.expBoost + playerCount) / playerCount;
-      var xp = this._targets.expBonus > 0 ? Math.min(xpEff / this._targets.expBonus, 1.0) : 1.0;
-      var flEff = score.flaggy * (score.flagBoost + flagCount) / flagCount;
-      var fl = this._targets.flaggy > 0 ? Math.min(flEff / this._targets.flaggy, 1.0) : 1.0;
-      return br * xp * fl;
-    }
-    var res = 0;
-    res += score.buildRate * this._weights.buildRate;
-    res += score.expBonus  * this._weights.expBonus  * (score.expBoost + playerCount) / playerCount;
-    res += score.flaggy    * this._weights.flaggy     * (score.flagBoost + flagCount)  / flagCount;
-    return res;
+    return getScoreSum(score, this._weights, this._targets, playerCount, flagCount);
   }
 
   /**
@@ -205,11 +194,6 @@ class TabuSearch {
       scorer.swap(posA, posB);
     }
   }
-
-  /**
-   * @deprecated Internal helper kept for old inline check. Use explicit call instead.
-   */
-  _maybeDiversify() {}
 }
 
 if (typeof module !== 'undefined' && module.exports) {
