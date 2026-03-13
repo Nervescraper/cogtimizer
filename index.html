@@ -453,6 +453,7 @@
         window.originalCogInventory = cogInvetory.clone();
         if (typeof solutionHistory !== 'undefined') {
           solutionHistory.length = 0;
+          currentSolutionIndex = -1;
           document.getElementById("solution-history").innerHTML = "";
         }
         console.log("Loading");
@@ -935,6 +936,7 @@
 
       // Solution history
       const solutionHistory = [];
+      let currentSolutionIndex = -1;
 
       function updateCachedBests(score) {
         if (!cachedIndividualBests || Object.keys(cachedIndividualBests).length === 0) return false;
@@ -961,6 +963,7 @@
 
       function saveSolution(inventory, label, isBalanced = false) {
         const saved = inventory.clone();
+        const newIndex = solutionHistory.length;
         solutionHistory.push({
           inventory: saved,
           label: label,
@@ -972,7 +975,27 @@
           isBalanced: isBalanced
         });
         updateCachedBests(inventory.score);
+
+        // Check if the new solution is immediately dominated
+        const newScores = inventory.score;
+        let dominated = false;
+        for (let k = 0; k < solutionHistory.length - 1; k++) {
+          const sk = solutionHistory[k].scores;
+          if (sk.buildRate >= newScores.buildRate && sk.expBonus >= newScores.expBonus && sk.flaggy >= newScores.flaggy &&
+              (sk.buildRate > newScores.buildRate || sk.expBonus > newScores.expBonus || sk.flaggy > newScores.flaggy)) {
+            dominated = true;
+            break;
+          }
+        }
+
+        if (dominated) {
+          // Don't switch to the dominated solution
+          renderSolutionHistory();
+          return false;
+        }
+        currentSolutionIndex = newIndex;
         renderSolutionHistory();
+        return true;
       }
 
       function renderSolutionHistory() {
@@ -1069,9 +1092,10 @@
           const tdBtn = document.createElement("td");
           tdBtn.style.cssText = cellStyle;
           const loadBtn = document.createElement("button");
-          loadBtn.innerText = "Load";
+          loadBtn.innerText = i === currentSolutionIndex ? "Loaded" : "Load";
           loadBtn.className = "load-solution-btn";
           loadBtn.style.cssText = "font-size:0.8em; padding:1px 6px; cursor:pointer;";
+          loadBtn.disabled = i === currentSolutionIndex || solving;
           loadBtn.onclick = () => loadSolution(i);
           tdBtn.appendChild(loadBtn);
           tr.appendChild(tdBtn);
@@ -1131,6 +1155,12 @@
           }
           tr.appendChild(tdNotes);
 
+          // Highlight currently displayed solution
+          if (i === currentSolutionIndex) {
+            tr.style.outline = "2px solid #7aacde";
+            tr.style.outlineOffset = "-1px";
+          }
+
           table.appendChild(tr);
         }
         container.appendChild(table);
@@ -1139,7 +1169,9 @@
       function loadSolution(index) {
         if (solving) return;
         const entry = solutionHistory[index];
+        currentSolutionIndex = index;
         showResult(entry.inventory);
+        renderSolutionHistory();
       }
 
 
@@ -1191,8 +1223,10 @@
           if (preset === "custom") {
             label = `Custom (${priorities.buildRate}/${priorities.expBonus}/${priorities.flaggy})`;
           }
-          saveSolution(best, label, preset === "balanced");
-          showResult(best);
+          const loaded = saveSolution(best, label, preset === "balanced");
+          if (loaded) {
+            showResult(best);
+          }
 
           solveTextElem.innerText = "Solve";
           openCogTab();
@@ -1263,8 +1297,10 @@
               });
             }
 
-            saveSolution(best, label, preset === "balanced");
-            showResult(best);
+            const loaded = saveSolution(best, label, preset === "balanced");
+            if (loaded) {
+              showResult(best);
+            }
             solveTextElem.innerText = "Solve";
             openCogTab();
           } finally {
