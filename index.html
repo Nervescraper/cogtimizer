@@ -686,15 +686,28 @@
       }
 
       document.getElementById("load").addEventListener("click", () => {
-        const input = document.getElementById("input").value;
-        window._rawImportData = input;
+        const raw = document.getElementById("input").value;
+        window._rawImportData = raw;
+        const input = raw.trim();
+        // Try to extract JSON object if there's junk before/after it
+        let parsed;
         try {
-          const save = JSON.parse(input);
-          load(save);
+          parsed = JSON.parse(input);
         } catch (e) {
           if (e instanceof SyntaxError) {
-            fetchAndLoadConfig(input);
+            const start = input.indexOf('{');
+            const end = input.lastIndexOf('}');
+            if (start >= 0 && end > start) {
+              try {
+                parsed = JSON.parse(input.slice(start, end + 1));
+              } catch (_) { /* still bad */ }
+            }
           }
+        }
+        if (parsed && typeof parsed === 'object') {
+          load(parsed);
+        } else {
+          fetchAndLoadConfig(input);
         }
       });
       
