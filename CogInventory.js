@@ -1,6 +1,12 @@
 if (typeof require !== 'undefined') {
   var { getBoostPositions, INV_ROWS, INV_COLUMNS } = require('./BoostPositions.js');
 }
+if (typeof require !== 'undefined') {
+  var _excMod = require('./ExcogiaHelper.js');
+  findExcogiaBlocks = _excMod.findExcogiaBlocks;
+  isYinPiece = _excMod.isYinPiece;
+  EXCOGIA_BOOST = _excMod.EXCOGIA_BOOST;
+}
 
 const ICON_QUALITY_MAP = {
   ["0"]: "Nooby",
@@ -431,18 +437,54 @@ class CogInventory {
 
     const board = this.board;
     const bonusGrid = Array(INV_ROWS).fill(0).map(() => { return Array(INV_COLUMNS).fill(0).map(() => { return { ...result } })});
+    // Detect valid Excogia 2x2 blocks — only these Yin pieces get the "everything" boost
+    const self = this;
+    const excogiaBlocks = findExcogiaBlocks(
+      function(key) { return self.get(key); },
+      this.availableSlotKeys
+    );
+    const excogiaActiveKeys = new Set();
+    for (const block of excogiaBlocks) {
+      excogiaActiveKeys.add(block.tlKey);
+      excogiaActiveKeys.add(block.trKey);
+      excogiaActiveKeys.add(block.blKey);
+      excogiaActiveKeys.add(block.brKey);
+    }
+
     for (let key of this.availableSlotKeys) {
       const entry = this.get(key);
-      if (!entry.boostRadius) continue;
+      if (!entry.boostRadius) {
+        // Check if this is a Yin piece in a valid Excogia block
+        if (!excogiaActiveKeys.has(key)) continue;
+      }
       const { x: j, y: i } = entry.position();
-      const boosted = getBoostPositions(entry.boostRadius, i, j);
+
+      // Determine effective boost values
+      let boostRadius, buildRadiusBoost, flaggyRadiusBoost, expRadiusBoost, flagBoost;
+      if (excogiaActiveKeys.has(key)) {
+        // Yin piece in valid 2x2 — use Excogia constants
+        boostRadius = EXCOGIA_BOOST.boostRadius;
+        buildRadiusBoost = EXCOGIA_BOOST.buildRadiusBoost;
+        expRadiusBoost = EXCOGIA_BOOST.expRadiusBoost;
+        flaggyRadiusBoost = 0;
+        flagBoost = 0;
+      } else {
+        // Regular boost cog — use its own values
+        boostRadius = entry.boostRadius;
+        buildRadiusBoost = entry.buildRadiusBoost || 0;
+        flaggyRadiusBoost = entry.flaggyRadiusBoost || 0;
+        expRadiusBoost = entry.expRadiusBoost || 0;
+        flagBoost = entry.flagBoost || 0;
+      }
+
+      const boosted = getBoostPositions(boostRadius, i, j);
       for (const boostCord of boosted) {
         const bonus = CogInventory._saveGet(bonusGrid, ...boostCord);
         if (!bonus) continue;
-        bonus.buildRate += entry.buildRadiusBoost  || 0;
-        bonus.flaggy    += entry.flaggyRadiusBoost || 0;
-        bonus.expBoost  += entry.expRadiusBoost    || 0;
-        bonus.flagBoost += entry.flagBoost         || 0;
+        bonus.buildRate += buildRadiusBoost;
+        bonus.flaggy    += flaggyRadiusBoost;
+        bonus.expBoost  += expRadiusBoost;
+        bonus.flagBoost += flagBoost;
       }
     }
  
