@@ -725,8 +725,27 @@
         const pos1 = currentStep.cog.position(currentStep.keyFrom);
         const pos2 = currentStep.targetCog.position(currentStep.keyTo);
 
-        // TODO Paddy: clone is now in the state _before_ the move, that should be displayed with the 2 positions highlighted.
+        // Render board and spare tray from clone state
         f.printBoard(clone.board);
+
+        // Re-render spare tray from clone
+        const spareCogKeysClone = Object.keys(clone.cogs)
+          .map(Number)
+          .filter(k => k >= 108 && k < 228)
+          .sort((a, b) => a - b);
+        for (let si = 0; si < spareCogKeysClone.length; si++) {
+          const sk = spareCogKeysClone[si];
+          const idx = sk - 108;
+          window.spareRenderer.set(Math.floor(idx / 3), idx % 3, clone.cogs[sk]);
+        }
+        // Clear spare slots that no longer have cogs
+        for (let sk = 108; sk < 108 + window.spareRenderer._rows * 3; sk++) {
+          if (!clone.cogs[sk]) {
+            const idx = sk - 108;
+            window.spareRenderer.set(Math.floor(idx / 3), idx % 3, null);
+          }
+        }
+
         window.boardRenderer.move(pos1, pos2);
 
         if (pos1.location == "spare" || pos2.location == "spare") {
