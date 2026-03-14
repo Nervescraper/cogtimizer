@@ -1,6 +1,9 @@
 if (typeof require !== 'undefined') {
   var { getBoostPositions, INV_ROWS, INV_COLUMNS } = require('./BoostPositions.js');
-  var { isYinPiece, findExcogiaBlocks, EXCOGIA_BOOST } = require('./ExcogiaHelper.js');
+  var _exc = require('./ExcogiaHelper.js');
+  globalThis.isYinPiece = _exc.isYinPiece;
+  globalThis.findExcogiaBlocks = _exc.findExcogiaBlocks;
+  globalThis.EXCOGIA_BOOST = _exc.EXCOGIA_BOOST;
 }
 
 // Match CogInventory.score floating-point behavior: divide first, then multiply, then ceil

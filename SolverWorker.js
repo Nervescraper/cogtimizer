@@ -1,18 +1,19 @@
+var _v = '?v=2';
 importScripts(
-  'BoostPositions.js',
-  'CogInventory.js',
-  'ExcogiaHelper.js',
-  'IncrementalScorer.js',
-  'SeededRng.js',
-  'GreedyInit.js',
-  'Serializer.js',
-  'Solver.js',
-  'StepOptimizer.js',
-  'solvers/TabuList.js',
-  'solvers/SimulatedAnnealing.js',
-  'solvers/TabuSearch.js',
-  'solvers/BlockCrossover.js',
-  'solvers/GeneticAlgorithm.js'
+  'BoostPositions.js' + _v,
+  'CogInventory.js' + _v,
+  'ExcogiaHelper.js' + _v,
+  'IncrementalScorer.js' + _v,
+  'SeededRng.js' + _v,
+  'GreedyInit.js' + _v,
+  'Serializer.js' + _v,
+  'Solver.js' + _v,
+  'StepOptimizer.js' + _v,
+  'solvers/TabuList.js' + _v,
+  'solvers/SimulatedAnnealing.js' + _v,
+  'solvers/TabuSearch.js' + _v,
+  'solvers/BlockCrossover.js' + _v,
+  'solvers/GeneticAlgorithm.js' + _v
 );
 
 var ALGORITHMS = {

@@ -1,7 +1,7 @@
 // GreedyInit.js
 if (typeof require !== 'undefined') {
   var { getBoostPositions, INV_ROWS, INV_COLUMNS } = require('./BoostPositions.js');
-  var { getYinQuadrant } = require('./ExcogiaHelper.js');
+  globalThis.getYinQuadrant = require('./ExcogiaHelper.js').getYinQuadrant;
 }
 var SPARE_START = 108;
 
