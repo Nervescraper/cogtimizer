@@ -747,14 +747,16 @@
           [window.spareRenderer._type]: window.spareRenderer
         };
 
-        const pos1Slot = renderer[pos1.location].get(pos1.y, pos1.x);
-        const pos2Slot = renderer[pos2.location].get(pos2.y, pos2.x);
+        const pos1Renderer = renderer[pos1.location];
+        const pos2Renderer = renderer[pos2.location];
+        const pos1Slot = pos1Renderer && pos1Renderer.get(pos1.y, pos1.x);
+        const pos2Slot = pos2Renderer && pos2Renderer.get(pos2.y, pos2.x);
 
-        if (pos1Slot.item && pos1Slot.item.icon !== "Blank" && pos1Slot.elem.childNodes.length === 1) {
+        if (pos1Slot && pos2Slot && pos1Slot.item && pos1Slot.item.icon !== "Blank" && pos1Slot.elem.childNodes.length === 1) {
           const from = pos1Slot.elem.childNodes[0];
           animateSwitchFrom(from, pos2Slot.elem.getBoundingClientRect());
         }
-        if (pos2Slot.item && pos2Slot.item.icon !== "Blank" && pos2Slot.elem.childNodes.length === 1) {
+        if (pos1Slot && pos2Slot && pos2Slot.item && pos2Slot.item.icon !== "Blank" && pos2Slot.elem.childNodes.length === 1) {
           const to = pos2Slot.elem.childNodes[0];
           animateSwitchTo(to, pos1Slot.elem.getBoundingClientRect());
         }
@@ -831,9 +833,27 @@
         });
       }
 
+      // Strip tiny cogs (keys 228+) from an inventory before sending to solvers.
+      // They are not interchangeable with regular cogs and must not be moved.
+      function stripTinyCogs(inventory) {
+        const clone = inventory.clone();
+        for (const k of Object.keys(clone.cogs)) {
+          if (Number(k) >= 228) delete clone.cogs[k];
+        }
+        return clone;
+      }
+
+      // Restore tiny cogs from the original inventory into a solver result.
+      function restoreTinyCogs(solvedInv, originalInv) {
+        for (const [k, cog] of Object.entries(originalInv.cogs)) {
+          if (Number(k) >= 228) solvedInv.cogs[k] = new Cog(cog);
+        }
+        solvedInv._score = null;
+      }
+
       // Run solver for the given number of iterations using parallel workers
       async function runSolveIterations(inventory, solveTime, iterations, statusFn) {
-        const serializedInv = serialize(inventory);
+        const serializedInv = serialize(stripTinyCogs(inventory));
         const weights = solver.weights;
         const targets = solver.targets || null;
         const settings = { weights: weights, targets: targets };
@@ -848,6 +868,7 @@
           if (result.score > bestScore) {
             bestScore = result.score;
             best = deserialize(result.inventory);
+            restoreTinyCogs(best, inventory);
           }
         }
         return best;
