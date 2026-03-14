@@ -93,6 +93,21 @@ class TabuSearch {
     this._tabuList.clear();
 
     while (Date.now() - startTime < timeLimit) {
+      // --- Occasionally try a block-move (Excogia relocation) ---
+      if (this._rng.random() < 0.10) {
+        var blockResult = this._tryBlockMove(scorer, inventory, playerCount, flagCount, bestScalar);
+        if (blockResult) {
+          currentScalar = blockResult.score;
+          if (currentScalar > bestScalar) {
+            bestScalar = currentScalar;
+            bestInventory = inventory.clone();
+            stepsSinceImprovement = 0;
+          }
+          iterations++;
+          continue;
+        }
+      }
+
       // --- Generate N candidate moves ---
       var bestCandidateScore = -Infinity;
       var bestCandidateA     = -1;
@@ -193,6 +208,47 @@ class TabuSearch {
       if (posB === posA) continue;
       scorer.swap(posA, posB);
     }
+  }
+
+  /**
+   * Try relocating an assembled Excogia block. Apply if it improves the score.
+   * Returns { score } if applied, null if no blocks or no improvement.
+   */
+  _tryBlockMove(scorer, inventory, playerCount, flagCount, bestScalar) {
+    var blocks = findExcogiaBlocks(
+      function(k) { return inventory.get(k); },
+      inventory.availableSlotKeys
+    );
+    if (blocks.length === 0) return null;
+
+    var rng = this._rng;
+    var block = blocks[rng.randInt ? rng.randInt(blocks.length) : Math.floor(rng.random() * blocks.length)];
+    var srcRow = Math.floor(block.tlKey / INV_COLUMNS);
+    var srcCol = block.tlKey % INV_COLUMNS;
+
+    var destRow, destCol, attempts = 0;
+    do {
+      destRow = Math.floor(rng.random() * (INV_ROWS - 1));
+      destCol = Math.floor(rng.random() * (INV_COLUMNS - 1));
+      attempts++;
+    } while (attempts < 20 && destRow === srcRow && destCol === srcCol);
+
+    var swaps = [
+      [block.tlKey, destRow * INV_COLUMNS + destCol],
+      [block.trKey, destRow * INV_COLUMNS + destCol + 1],
+      [block.blKey, (destRow + 1) * INV_COLUMNS + destCol],
+      [block.brKey, (destRow + 1) * INV_COLUMNS + destCol + 1]
+    ];
+
+    for (var i = 0; i < swaps.length; i++) scorer.swap(swaps[i][0], swaps[i][1]);
+    var newScalar = this._scalarScore(scorer.score, playerCount, flagCount);
+
+    if (newScalar > bestScalar) {
+      return { score: newScalar };
+    }
+    // Undo
+    for (var j = swaps.length - 1; j >= 0; j--) scorer.swap(swaps[j][0], swaps[j][1]);
+    return null;
   }
 }
 

@@ -127,6 +127,34 @@ class GeneticAlgorithm {
     var mutated = individual.clone();
     var slots = mutated.availableSlotKeys;
 
+    // 10% chance: block-move mutation (relocate assembled Excogia)
+    if (this.rng.random() < 0.10) {
+      var blocks = findExcogiaBlocks(
+        function(k) { return mutated.get(k); },
+        slots
+      );
+      if (blocks.length > 0) {
+        var block = blocks[this.rng.randInt(blocks.length)];
+        var srcRow = Math.floor(block.tlKey / INV_COLUMNS);
+        var srcCol = block.tlKey % INV_COLUMNS;
+        var destRow, destCol, attempts = 0;
+        do {
+          destRow = this.rng.randInt(INV_ROWS - 1);
+          destCol = this.rng.randInt(INV_COLUMNS - 1);
+          attempts++;
+        } while (attempts < 20 && destRow === srcRow && destCol === srcCol);
+        var srcKeys = [block.tlKey, block.trKey, block.blKey, block.brKey];
+        var destKeys = [
+          destRow * INV_COLUMNS + destCol,
+          destRow * INV_COLUMNS + destCol + 1,
+          (destRow + 1) * INV_COLUMNS + destCol,
+          (destRow + 1) * INV_COLUMNS + destCol + 1
+        ];
+        for (var m = 0; m < 4; m++) mutated.move(srcKeys[m], destKeys[m]);
+        return mutated;
+      }
+    }
+
     if (this.rng.random() < spareSwapRate) {
       // Spare mutation: swap a random board cog with a spare-pool cog
       var boardKeys = slots.filter(function(k) { return mutated.cogs[k] && !mutated.cogs[k].fixed; });

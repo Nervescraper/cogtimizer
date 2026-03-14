@@ -92,13 +92,41 @@ Before the normal cog classification (localBoostCogs / statCogs / etc.), identif
 4. Remaining Yin pieces (incomplete sets) go into the regular `statCogs` pool for normal placement
 5. Proceed with normal greedy placement for all other cogs
 
-### 4. No solver changes
+### 4. Solver block-move: relocate assembled Excogia as a unit
 
-Solvers treat Excogia pieces like any other cog. The score signal from the validated scorer provides the natural incentive to keep blocks together (the "everything" boost is very valuable) or break them if better options exist.
+**SimulatedAnnealing.js, TabuSearch.js, GeneticAlgorithm.js:**
+
+Random single-cog swaps will inevitably break an assembled Excogia block (SA accepts worse moves at high temperature), and the chance of randomly reassembling 4 pieces in the correct 2x2 arrangement is effectively zero. The solver needs a move type that keeps blocks intact while exploring different placements.
+
+**Block-move operation:**
+1. Identify all currently assembled Excogia blocks on the board (using `findExcogiaBlocks`)
+2. Pick one block at random
+3. Pick a random valid 2x2 destination (any row r2, col c2 where r2+1 < INV_ROWS and c2+1 < INV_COLUMNS)
+4. Perform a 4-way swap: TL↔dest(r2,c2), TR↔dest(r2,c2+1), BL↔dest(r2+1,c2), BR↔dest(r2+1,c2+1)
+
+The block moves to the new position intact, and the 4 displaced cogs move to where the block was. The block stays assembled at its new location.
+
+**Move selection probability:** ~10% block-move, ~60% board-board, ~30% board-spare (when blocks exist). When no assembled blocks exist, fall back to the normal board-board/board-spare split.
+
+**Single Yin piece swaps:** Regular board-board and board-spare moves can still select individual Yin pieces. This allows the solver to break a block if it truly scores better (e.g., jeweled cogs outperform the everything boost). The scorer correctly removes the boost when a block is broken.
+
+**IncrementalScorer interaction:** Block-moves involve 4 swaps of Yin pieces, each triggering a full recompute. This is acceptable since block-moves are only 10% of all moves, and the recompute is O(96) per swap.
+
+### 5. Soft-fix Yin pieces during single-cog swaps
+
+To prevent the solver from accidentally breaking blocks through random exploration, single-cog swap selection (board-board and board-spare moves) should skip Yin pieces that are currently part of an assembled Excogia block. Only the block-move operation can relocate them.
+
+This is implemented in each solver's move selection: when picking a cog for a regular swap, skip it if `isYinPiece(cog)` returns true AND the cog is part of a valid block. The block-move is the only way to move assembled Yin pieces.
+
+Incomplete Yin sets (pieces not in a valid block) remain freely movable by regular swaps.
 
 ## Files changed
 
-- **CogInventory.js** — strip boostRadius/fixed for Yin pieces at load, add `isYinPiece(cog)` helper, add 2x2 validation in scorer
-- **IncrementalScorer.js** — fall back to full recompute when a Yin piece is swapped
+- **CogInventory.js** — strip boostRadius/fixed for Yin pieces at load, add 2x2 validation in scorer
+- **ExcogiaHelper.js** — `isYinPiece`, `getYinQuadrant`, `findExcogiaBlocks`, `EXCOGIA_BOOST` constants
+- **IncrementalScorer.js** — fall back to full recompute when a Yin piece is swapped; Excogia validation in _initFromScratch
 - **GreedyInit.js** — pre-assemble Excogia blocks in corners before regular placement
-- **Tests** — scorer correctly grants/removes boost based on 2x2 arrangement; GreedyInit places blocks correctly
+- **SimulatedAnnealing.js** — add block-move type, skip assembled Yin in single swaps
+- **TabuSearch.js** — add block-move type, skip assembled Yin in single swaps
+- **GeneticAlgorithm.js** — add block-move in mutation, skip assembled Yin in single swaps
+- **Tests** — scorer grants/removes boost based on 2x2 arrangement; block-move preserves assembly

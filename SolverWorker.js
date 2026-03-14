@@ -1,4 +1,4 @@
-var _v = '?v=2';
+var _v = '?v=3';
 importScripts(
   'BoostPositions.js' + _v,
   'CogInventory.js' + _v,

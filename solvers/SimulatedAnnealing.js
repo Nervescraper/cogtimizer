@@ -67,54 +67,54 @@ class SimulatedAnnealing {
   }
 
   /**
-   * Select two positions to swap using the weighted neighborhood strategy.
+   * Select a move using the weighted neighborhood strategy.
    *
-   * 70% board-board: both positions from availableSlotKeys (key < 96).
-   * 30% board-spare: one board position + one spare position (key >= 108).
+   * ~10% block-move (when assembled Excogia blocks exist): relocate entire 2x2 block.
+   * ~27% board-spare: one board position + one spare position (key >= 108).
+   * ~63% board-board: both positions from availableSlotKeys (key < 96).
    *
-   * Fixed cogs and build-area cogs are never selected.
+   * Fixed cogs, build-area cogs, and assembled Yin pieces are never selected for single swaps.
    *
    * @param {CogInventory} inventory
    * @param {SeededRng} rng
-   * @returns {[number, number]} [posA, posB] - two distinct positions to swap
+   * @returns {Object} { type: 'single', posA, posB } or { type: 'block', swaps: [[a,b],[a,b],[a,b],[a,b]] }
    */
   _pickMove(inventory, rng) {
-    var boardSlots = inventory.availableSlotKeys; // key < 96, non-fixed
+    var boardSlots = inventory.availableSlotKeys;
+
+    // Try block-move ~10% of the time
+    if (rng.random() < 0.10) {
+      var blockMove = this._pickBlockMove(inventory, rng);
+      if (blockMove) return blockMove;
+    }
+
     var isSpareMove = rng.random() < this.settings.boardSpareRatio;
 
     if (isSpareMove) {
-      // Board-spare: pick one board position + one spare cog key
       var spareKeys = inventory.cogKeys.filter(function(k) { return Number(k) >= 108; });
       if (spareKeys.length === 0) {
-        // Fall back to board-board if no spare cogs
-        return this._pickBoardBoardMove(inventory, boardSlots, rng);
+        return this._pickSingleBoardMove(inventory, boardSlots, rng);
       }
       var posA = rng.pick(boardSlots);
       var posB = Number(rng.pick(spareKeys));
-      // Validate: posA cog must not be fixed; posB cog must not be fixed or build-area
       var cogA = inventory.get(posA);
       var cogB = inventory.get(posB);
       if ((cogA && cogA.fixed) || (cogB && cogB.fixed)) {
-        // Retry once with a plain board-board move rather than looping
-        return this._pickBoardBoardMove(inventory, boardSlots, rng);
+        return this._pickSingleBoardMove(inventory, boardSlots, rng);
       }
       if (cogB && cogB.position && cogB.position().location === 'build') {
-        return this._pickBoardBoardMove(inventory, boardSlots, rng);
+        return this._pickSingleBoardMove(inventory, boardSlots, rng);
       }
-      return [posA, posB];
+      return { type: 'single', posA: posA, posB: posB };
     }
 
-    return this._pickBoardBoardMove(inventory, boardSlots, rng);
+    return this._pickSingleBoardMove(inventory, boardSlots, rng);
   }
 
   /**
-   * Pick two distinct non-fixed board positions for a board-board swap.
-   * @param {CogInventory} inventory
-   * @param {number[]} boardSlots
-   * @param {SeededRng} rng
-   * @returns {[number, number]}
+   * Pick two distinct non-fixed board positions for a single swap.
    */
-  _pickBoardBoardMove(inventory, boardSlots, rng) {
+  _pickSingleBoardMove(inventory, boardSlots, rng) {
     var posA, posB, cogA, cogB, attempts;
 
     attempts = 0;
@@ -131,8 +131,51 @@ class SimulatedAnnealing {
       attempts++;
     } while ((posB === posA || (cogB && cogB.fixed)) && attempts < 20);
 
-    return [posA, posB];
+    return { type: 'single', posA: posA, posB: posB };
   }
+
+  /**
+   * Pick a block-move: relocate an assembled Excogia 2x2 block to a new board position.
+   * Returns null if no blocks exist.
+   */
+  _pickBlockMove(inventory, rng) {
+    var blocks = findExcogiaBlocks(
+      function(k) { return inventory.get(k); },
+      inventory.availableSlotKeys
+    );
+    if (blocks.length === 0) return null;
+
+    var block = blocks[rng.randInt(blocks.length)];
+    var srcKeys = [block.tlKey, block.trKey, block.blKey, block.brKey];
+
+    // Pick random destination 2x2 (top-left corner of destination)
+    var attempts = 0;
+    var destRow, destCol;
+    do {
+      destRow = rng.randInt(INV_ROWS - 1);
+      destCol = rng.randInt(INV_COLUMNS - 1);
+      attempts++;
+    } while (attempts < 20 && (
+      destRow === Math.floor(block.tlKey / INV_COLUMNS) &&
+      destCol === block.tlKey % INV_COLUMNS
+    ));
+
+    var destKeys = [
+      destRow * INV_COLUMNS + destCol,
+      destRow * INV_COLUMNS + destCol + 1,
+      (destRow + 1) * INV_COLUMNS + destCol,
+      (destRow + 1) * INV_COLUMNS + destCol + 1
+    ];
+
+    // Build 4 swaps: each source piece swaps with the cog at its destination
+    var swaps = [];
+    for (var i = 0; i < 4; i++) {
+      swaps.push([srcKeys[i], destKeys[i]]);
+    }
+
+    return { type: 'block', swaps: swaps };
+  }
+
 
   /**
    * Adjust the cooling rate to maintain the target acceptance rate.
@@ -191,11 +234,27 @@ class SimulatedAnnealing {
    */
   _step(inventory, weights, targets, playerCount, flagCount, temperature, rng, currentScalar) {
     var move = this._pickMove(inventory, rng);
-    var posA = move[0];
-    var posB = move[1];
 
-    // Apply the swap via IncrementalScorer
-    this.scorer.swap(posA, posB);
+    if (move.type === 'block') {
+      // Apply all 4 swaps
+      for (var i = 0; i < move.swaps.length; i++) {
+        this.scorer.swap(move.swaps[i][0], move.swaps[i][1]);
+      }
+      var newScalar = getScoreSum(this.scorer.score, weights, targets, playerCount, flagCount);
+      var delta = newScalar - currentScalar;
+      var accepted = delta > 0 || rng.random() < Math.exp(delta / temperature);
+      if (!accepted) {
+        // Undo in reverse order
+        for (var j = move.swaps.length - 1; j >= 0; j--) {
+          this.scorer.swap(move.swaps[j][0], move.swaps[j][1]);
+        }
+        return { accepted: false, newScalar: currentScalar };
+      }
+      return { accepted: true, newScalar: newScalar };
+    }
+
+    // Single swap
+    this.scorer.swap(move.posA, move.posB);
 
     var newScalar = getScoreSum(this.scorer.score, weights, targets, playerCount, flagCount);
     var delta = newScalar - currentScalar;
@@ -203,8 +262,7 @@ class SimulatedAnnealing {
     var accepted = delta > 0 || rng.random() < Math.exp(delta / temperature);
 
     if (!accepted) {
-      // Undo the swap (applying same swap twice restores original state)
-      this.scorer.swap(posA, posB);
+      this.scorer.swap(move.posA, move.posB);
       return { accepted: false, newScalar: currentScalar };
     }
 
