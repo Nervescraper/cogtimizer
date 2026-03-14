@@ -1,6 +1,7 @@
 importScripts(
   'BoostPositions.js',
   'CogInventory.js',
+  'ExcogiaHelper.js',
   'IncrementalScorer.js',
   'SeededRng.js',
   'GreedyInit.js',

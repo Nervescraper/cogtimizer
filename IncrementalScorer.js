@@ -1,5 +1,6 @@
 if (typeof require !== 'undefined') {
   var { getBoostPositions, INV_ROWS, INV_COLUMNS } = require('./BoostPositions.js');
+  var { isYinPiece, findExcogiaBlocks, EXCOGIA_BOOST } = require('./ExcogiaHelper.js');
 }
 
 // Match CogInventory.score floating-point behavior: divide first, then multiply, then ceil
@@ -33,19 +34,56 @@ class IncrementalScorer {
     // Running totals (pre-flaggy-multiplier)
     this._totals = { buildRate: 0, expBonus: 0, flaggy: 0, expBoost: 0, flagBoost: 0 };
 
-    // Step 1: Build bonus grid from boost cogs
-    for (const key of inv.availableSlotKeys) {
-      const cog = inv.get(key);
-      if (!cog || !cog.boostRadius) continue;
-      const pos = cog.position();
-      const affected = getBoostPositions(cog.boostRadius, pos.y, pos.x);
-      for (const [r, c] of affected) {
+    // Step 1: Build bonus grid from boost cogs (including Excogia blocks)
+    var self = this;
+    var excogiaBlocks = findExcogiaBlocks(
+      function(key) { return self._inv.get(key); },
+      self._inv.availableSlotKeys
+    );
+    var excogiaActiveKeys = {};
+    for (var b = 0; b < excogiaBlocks.length; b++) {
+      var block = excogiaBlocks[b];
+      excogiaActiveKeys[block.tlKey] = true;
+      excogiaActiveKeys[block.trKey] = true;
+      excogiaActiveKeys[block.blKey] = true;
+      excogiaActiveKeys[block.brKey] = true;
+    }
+
+    for (var i = 0; i < inv.availableSlotKeys.length; i++) {
+      var key = inv.availableSlotKeys[i];
+      var cog = inv.get(key);
+      if (!cog) continue;
+
+      // Determine if this cog has a boost to apply
+      var isActiveExcogia = excogiaActiveKeys[key];
+      if (!cog.boostRadius && !isActiveExcogia) continue;
+
+      var pos = cog.position();
+
+      // Determine effective boost values
+      var boostRadius, buildRadiusBoost, flaggyRadiusBoost, expRadiusBoost, flagBoost;
+      if (isActiveExcogia) {
+        boostRadius = EXCOGIA_BOOST.boostRadius;
+        buildRadiusBoost = EXCOGIA_BOOST.buildRadiusBoost;
+        expRadiusBoost = EXCOGIA_BOOST.expRadiusBoost;
+        flaggyRadiusBoost = 0;
+        flagBoost = 0;
+      } else {
+        boostRadius = cog.boostRadius;
+        buildRadiusBoost = cog.buildRadiusBoost || 0;
+        flaggyRadiusBoost = cog.flaggyRadiusBoost || 0;
+        expRadiusBoost = cog.expRadiusBoost || 0;
+        flagBoost = cog.flagBoost || 0;
+      }
+
+      var positions = getBoostPositions(boostRadius, pos.y, pos.x);
+      for (var p = 0; p < positions.length; p++) {
+        var r = positions[p][0], c = positions[p][1];
         if (r < 0 || r >= INV_ROWS || c < 0 || c >= INV_COLUMNS) continue;
-        const cell = this._bonusGrid[r][c];
-        cell.buildRate += cog.buildRadiusBoost || 0;
-        cell.flaggy += cog.flaggyRadiusBoost || 0;
-        cell.expBoost += cog.expRadiusBoost || 0;
-        cell.flagBoost += cog.flagBoost || 0;
+        this._bonusGrid[r][c].buildRate += buildRadiusBoost;
+        this._bonusGrid[r][c].flaggy += flaggyRadiusBoost;
+        this._bonusGrid[r][c].expBoost += expRadiusBoost;
+        this._bonusGrid[r][c].flagBoost += flagBoost;
       }
     }
 
@@ -114,6 +152,15 @@ class IncrementalScorer {
 
   swap(posA, posB) {
     if (posA === posB) return;
+    var cogA = this._inv.cogs[posA];
+    var cogB = this._inv.cogs[posB];
+    // If either cog is a Yin piece, do a full recompute — the everything boost
+    // fans out to all positions and forming/breaking blocks changes 4 pieces at once
+    if ((cogA && isYinPiece(cogA)) || (cogB && isYinPiece(cogB))) {
+      this._inv.move(posA, posB);
+      this._initFromScratch();
+      return;
+    }
     this._withdraw(posA);
     this._withdraw(posB);
     this._inv.move(posA, posB);
