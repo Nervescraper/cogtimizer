@@ -907,7 +907,12 @@
 
       async function findTheoreticalMaximums(solveTime, iterations, statusElem) {
         const noFlags = cogInvetory.flagPose.length === 0;
-        cachedIndividualBests = {};
+        const origScore = window.originalCogInventory.score;
+        cachedIndividualBests = {
+          buildRate: origScore.buildRate,
+          expBonus: origScore.expBonus,
+          flaggy: origScore.flaggy,
+        };
 
         for (let s = 0; s < BALANCED_STAT_NAMES.length; s++) {
           const stat = BALANCED_STAT_NAMES[s];
