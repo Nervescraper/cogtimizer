@@ -91,6 +91,10 @@
           </div>
         </div>
         <div class="border" id="border"></div>
+        <div id="buildarea" style="display:none; padding:1em 4px 0 0;">
+          <div style="font-family:'PressStart'; font-size:0.5em; color:#f4fcff; text-align:center; margin-bottom:4px;">Cog Shelf</div>
+          <div id="buildarea-content"></div>
+        </div>
         <div id="tinycogs-left" style="display:none; flex-direction:column; padding:1em 0 0 0; gap:1px;"></div>
         <div id="currentBoard">
         </div>
@@ -363,6 +367,7 @@
       window.f = {};
 
       window.boardRenderer = new BoardRenderer(ROWS, COLUMNS, "board");
+      window.buildRenderer = new BoardRenderer(4, 3, "build");
       window.spareRenderer = new BoardRenderer(60, 3, "spare", 5);
       window.solver = new Solver();
       window.cogInvetory = new CogInventory();
@@ -372,9 +377,29 @@
         window.spareRenderer.showPage(ev.page);
       });
 
+      const buildContent = document.getElementById("buildarea-content");
+      const buildTable = window.buildRenderer.createHTMLElement();
+      // Insert row labels above each row
+      const buildRowLabels = [
+        { text: 'Nooby Cogs', color: '#b0b0b0' },
+        { text: 'Decent Cogs', color: '#e8c840' },
+        { text: 'Superb Cogs', color: '#e05050' },
+        { text: 'Ultimate Cogs', color: '#c060e0' },
+      ];
+      const buildRows = buildTable.querySelectorAll('tr');
+      for (let r = buildRows.length - 1; r >= 0 && r < buildRowLabels.length; r--) {
+        const labelRow = document.createElement('tr');
+        const labelCell = document.createElement('td');
+        labelCell.colSpan = 3;
+        labelCell.style.cssText = "font-family:'PressStart'; font-size:0.6em; color:" + buildRowLabels[r].color + "; padding:4px 0 2px; border:none; background:none; height:auto; width:auto; max-width:none; margin:0; display:table-cell; text-shadow: 1px 1px 0px rgba(0,0,0,0.5);";
+        labelCell.textContent = buildRowLabels[r].text;
+        labelRow.appendChild(labelCell);
+        buildRows[r].parentNode.insertBefore(labelRow, buildRows[r]);
+      }
+      buildContent.appendChild(buildTable);
+
       const boardElem = document.getElementById("currentBoard");
       boardElem.innerHTML = "";
-      // boardElem.appendChild(table);
       boardElem.appendChild(window.boardRenderer.createHTMLElement());
 
       const stepContainer = createElem("div");
@@ -546,6 +571,15 @@
         const spareRows = Math.ceil((cogInvetory.spareSlotCount || 0) / 3);
         const sparePages = Math.ceil(spareRows / 5) || 1;
         sparePage.reset(sparePages, 0);
+        // Render build area (96-107): 4 rows x 3 cols
+        document.getElementById("buildarea").style.display = "";
+        for (let bk = 96; bk < 108; bk++) {
+          const idx = bk - 96;
+          const row = Math.floor(idx / 3);
+          const col = idx % 3;
+          window.buildRenderer.set(row, col, cogInvetory.cogs[bk] || null);
+        }
+
         // Render all spare cogs (108+) including tiny cogs at 228+
         const spareCogKeys = Object.keys(cogInvetory.cogs)
           .map(Number)
@@ -725,8 +759,14 @@
         const pos1 = currentStep.cog.position(currentStep.keyFrom);
         const pos2 = currentStep.targetCog.position(currentStep.keyTo);
 
-        // Render board and spare tray from clone state
+        // Render board, build area, and spare tray from clone state
         f.printBoard(clone.board);
+
+        // Re-render build area from clone
+        for (let bk = 96; bk < 108; bk++) {
+          const idx = bk - 96;
+          window.buildRenderer.set(Math.floor(idx / 3), idx % 3, clone.cogs[bk] || null);
+        }
 
         // Re-render spare tray from clone
         const spareCogKeysClone = Object.keys(clone.cogs)
@@ -764,6 +804,7 @@
         // Animation
         const renderer = {
           [window.boardRenderer._type]: window.boardRenderer,
+          [window.buildRenderer._type]: window.buildRenderer,
           [window.spareRenderer._type]: window.spareRenderer
         };
 
