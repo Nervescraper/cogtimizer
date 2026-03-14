@@ -301,8 +301,16 @@ class CogInventory {
         icon.type = "blank";
         icon.path = "assets/cog_blank.png"
       } else if(c.startsWith("Player")) {
-        icon = hatIcons[c.substring(7)] || { type: "head", path: "icons/head.png" };
-        icon.playerName = c.substring(7);
+        const pName = c.substring(7);
+        icon = hatIcons[pName] || { type: "head", path: "icons/head.png" };
+        icon.playerName = pName;
+        if (!icon.shortLabel) {
+          console.warn(`[CogLoad] Player "${pName}" at slot ${keyNum}: missing shortLabel. hatIcons has entry: ${!!hatIcons[pName]}, playerLabels has entry: ${!!playerLabels[pName]}`);
+          icon.shortLabel = playerLabels[pName] || pName.charAt(0).toUpperCase();
+        }
+        if (!icon.path || icon.path === "icons/head.png") {
+          console.warn(`[CogLoad] Player "${pName}" at slot ${keyNum}: no hat icon found, using default head`);
+        }
       } else if(c === "CogY") {
         icon.type = "cog";
         icon.path = "icons/cogs/Yang_Cog.png";
