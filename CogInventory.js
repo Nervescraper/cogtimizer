@@ -204,7 +204,23 @@ class CogInventory {
     foo[40] = "Arcane Cultist";
 
     const hatIcons = {};
+    const playerLabels = {};
     const playerNames = save["playerNames"];
+    // Build short labels: first letter + disambiguating digit (e.g., M1, D2)
+    if (playerNames) {
+      const letterCounts = {};
+      playerNames.forEach((v) => {
+        const letter = v.charAt(0).toUpperCase();
+        letterCounts[letter] = (letterCounts[letter] || 0) + 1;
+      });
+      const letterUsed = {};
+      playerNames.forEach((v) => {
+        const letter = v.charAt(0).toUpperCase();
+        letterUsed[letter] = (letterUsed[letter] || 0) + 1;
+        // Only add digit if there are multiple names starting with this letter
+        playerLabels[v] = letterCounts[letter] > 1 ? letter + letterUsed[letter] : letter;
+      });
+    }
     if (playerNames) {
       playerNames.forEach((v, i) => {
         const classNameSlot = `CharacterClass_${i}`;
@@ -245,7 +261,8 @@ class CogInventory {
                 hatIcons[v] = {
                   type: "hat",
                   path: window.player.render(index),
-                  className: className
+                  className: className,
+                  shortLabel: playerLabels[v]
                 };
                 hatFound = true;
               }
@@ -257,7 +274,8 @@ class CogInventory {
           hatIcons[v] = {
             type: "head",
 						path: "icons/head.png",
-            className: className
+            className: className,
+            shortLabel: playerLabels[v]
           };
         }
       });

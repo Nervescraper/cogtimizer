@@ -144,7 +144,8 @@ class BoardRenderer {
         div.style.backgroundImage = `url("${cog.icon.path}")`;
         div.style["background-size"] = `contain`;
         div.style.removeProperty("transform");
-        div.innerHTML = "";
+        var label = (cog.icon && cog.icon.shortLabel) || "?";
+        div.innerHTML = `<span style="font-family:'PressStart'; font-size:9px; color:#fff; text-shadow:1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; position:absolute; bottom:0; right:1px; pointer-events:none;">${label}</span>`;
         var tooltipParts = [];
         if (cog.icon.playerName) tooltipParts.push(cog.icon.playerName);
         if (cog.icon.className) tooltipParts.push(cog.icon.className);
