@@ -284,6 +284,13 @@ class CogInventory {
     // Fetch Gem-Shop flaggy upgrades
     try { this.flaggyShopUpgrades = JSON.parse(save["GemItemsPurchased"])[118] || 0; } catch(e) { this.flaggyShopUpgrades = 0; }
     // Fetch the list of available cogs
+    if (!save["CogM"] || !save["CogO"]) {
+      // Search for cog data under alternative keys
+      const cogKeys = Object.keys(save).filter(k => k.toLowerCase().indexOf('cog') !== -1);
+      console.warn("No cog data found at CogM/CogO. Cog-related keys found:", cogKeys);
+      console.warn("All top-level keys:", Object.keys(save).slice(0, 50));
+      return;
+    }
     const cogRaw = JSON.parse(save["CogM"]);
     const cogOArray = JSON.parse(save["CogO"]);
     const cogIcons = cogOArray.map(c=>{

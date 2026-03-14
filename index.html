@@ -740,6 +740,14 @@
           }
         }
         if (parsed && typeof parsed === 'object') {
+          // IdleonToolbox format wraps save data under a "data" key
+          if (parsed.data && parsed.data.CogM) {
+            // Carry over charNames as playerNames for the load() parser
+            if (parsed.charNames && !parsed.data.playerNames) {
+              parsed.data.playerNames = parsed.charNames;
+            }
+            parsed = parsed.data;
+          }
           load(parsed);
         } else {
           fetchAndLoadConfig(input);
