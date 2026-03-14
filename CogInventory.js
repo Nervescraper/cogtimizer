@@ -326,7 +326,7 @@ class CogInventory {
         boostRadius: c.h,
         flagBoost: c.j,
         nothing: c.k,
-        fixed: c.h === "everything",
+        fixed: false,
         blocked: false
       });
     });
@@ -379,6 +379,16 @@ class CogInventory {
     this.cogs = {};
     for (const cog of cogArray) {
       this.cogs[cog.key] = cog;
+    }
+
+    // Normalize Yin/Excogia pieces: strip boost data so scorer determines it from position
+    for (const key of Object.keys(this.cogs)) {
+      const cog = this.cogs[key];
+      if (cog.icon && typeof cog.icon === 'object' && cog.icon.path && cog.icon.path.indexOf('Yin_') !== -1) {
+        cog.boostRadius = null;
+        cog.buildRadiusBoost = null;
+        cog.expRadiusBoost = null;
+      }
     }
 
     document.getElementById("notify").style.display = "none";
