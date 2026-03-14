@@ -52,6 +52,16 @@ function getOptimalSteps(board, cogs, originalCogs) {
     posOf[ik] = Number(ik);
   }
 
+  // Find a free spare slot for cog shelf displacement
+  const SPARE_START = 108;
+  const BUILD_START = 96;
+  const BUILD_END = 107;
+  let nextSpare = SPARE_START;
+  function findFreeSpare() {
+    while (current[nextSpare] !== undefined) nextSpare++;
+    return nextSpare;
+  }
+
   // Selection sort over board positions 0–95
   const steps = [];
   for (let p = 0; p < 96; p++) {
@@ -67,13 +77,34 @@ function getOptimalSteps(board, cogs, originalCogs) {
       ? cogByIk[displacedIk]
       : { icon: "Blank", key: p, position: cog.position.bind(cog) };
 
-    steps.push({ board, cog, targetCog, keyFrom: p, keyTo: srcPos });
+    // If the source is a cog shelf slot (96-107), we can't swap directly —
+    // the displaced board cog must go to spare first, then the player moves in.
+    if (srcPos >= BUILD_START && srcPos <= BUILD_END && displacedIk !== undefined) {
+      const sparePos = findFreeSpare();
+      const sparePlaceholder = { icon: "Blank", key: sparePos, position: cog.position.bind(cog) };
 
-    // Update tracking
-    current[p] = targetIk;
-    current[srcPos] = displacedIk;
-    posOf[targetIk] = p;
-    if (displacedIk !== undefined) posOf[displacedIk] = srcPos;
+      // Step 1: move displaced board cog to spare
+      steps.push({ board, cog: targetCog, targetCog: sparePlaceholder, keyFrom: p, keyTo: sparePos });
+      current[sparePos] = displacedIk;
+      current[p] = undefined;
+      posOf[displacedIk] = sparePos;
+
+      // Step 2: move player from cog shelf to board
+      const shelfCog = cogByIk[targetIk];
+      const shelfPlaceholder = { icon: "Blank", key: srcPos, position: cog.position.bind(cog) };
+      steps.push({ board, cog: shelfCog, targetCog: shelfPlaceholder, keyFrom: p, keyTo: srcPos });
+      current[p] = targetIk;
+      current[srcPos] = undefined;
+      posOf[targetIk] = p;
+    } else {
+      steps.push({ board, cog, targetCog, keyFrom: p, keyTo: srcPos });
+
+      // Update tracking
+      current[p] = targetIk;
+      current[srcPos] = displacedIk;
+      posOf[targetIk] = p;
+      if (displacedIk !== undefined) posOf[displacedIk] = srcPos;
+    }
   }
 
   // Post-processing: filter out swaps of equivalent cogs
