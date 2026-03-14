@@ -1,6 +1,7 @@
 // GreedyInit.js
 if (typeof require !== 'undefined') {
   var { getBoostPositions, INV_ROWS, INV_COLUMNS } = require('./BoostPositions.js');
+  var { getYinQuadrant } = require('./ExcogiaHelper.js');
 }
 var SPARE_START = 108;
 
@@ -27,11 +28,6 @@ function greedyInit(inventory, weights, targets = null) {
     inv.cogs[pos] = cog;
   }
 
-  // Classify cogs
-  const localBoostCogs = allCogs.filter(c => c.boostRadius && c.boostRadius !== 'everything');
-  const everythingCogs = allCogs.filter(c => c.boostRadius === 'everything');
-  const statCogs = allCogs.filter(c => !c.boostRadius);
-
   function rawScore(cog) {
     let s = 0;
     s += (cog.buildRate || 0) * (weights.buildRate || 0);
@@ -50,14 +46,61 @@ function greedyInit(inventory, weights, targets = null) {
     return magnitude * coverage + rawScore(cog);
   }
 
-  localBoostCogs.sort((a, b) => boostScore(b) - boostScore(a));
-  statCogs.sort((a, b) => rawScore(b) - rawScore(a));
-
   const openPositions = new Set(availableSlots.filter(k => {
     const cog = inv.get(k);
     return !cog || !cog.fixed;
   }));
   const placedCogs = new Set();
+
+  // Pre-assemble Excogia blocks in corners before regular placement
+  const yinPieces = { TL: [], TR: [], BL: [], BR: [] };
+  for (const cog of allCogs) {
+    const q = getYinQuadrant(cog);
+    if (q) yinPieces[q].push(cog);
+  }
+
+  // Form complete sets and place as 2x2 blocks
+  const cornerPositions = [
+    [0, 1, 12, 13],           // top-left
+    [82, 83, 94, 95],         // bottom-right
+    [10, 11, 22, 23],         // top-right
+    [72, 73, 84, 85],         // bottom-left
+  ];
+  const numSets = Math.min(yinPieces.TL.length, yinPieces.TR.length, yinPieces.BL.length, yinPieces.BR.length);
+  let cornerIdx = 0;
+  for (let s = 0; s < numSets && cornerIdx < cornerPositions.length; s++) {
+    const [tlPos, trPos, blPos, brPos] = cornerPositions[cornerIdx];
+    // Check all 4 positions are available (openPositions is a Set)
+    if (!openPositions.has(tlPos) || !openPositions.has(trPos) || !openPositions.has(blPos) || !openPositions.has(brPos)) {
+      cornerIdx++;
+      s--; // retry with next corner
+      continue;
+    }
+    placeCog(yinPieces.TL[s], tlPos);
+    placedCogs.add(yinPieces.TL[s]);
+    placeCog(yinPieces.TR[s], trPos);
+    placedCogs.add(yinPieces.TR[s]);
+    placeCog(yinPieces.BL[s], blPos);
+    placedCogs.add(yinPieces.BL[s]);
+    placeCog(yinPieces.BR[s], brPos);
+    placedCogs.add(yinPieces.BR[s]);
+    openPositions.delete(tlPos);
+    openPositions.delete(trPos);
+    openPositions.delete(blPos);
+    openPositions.delete(brPos);
+    cornerIdx++;
+  }
+
+  // Exclude already-placed cogs from regular classification
+  const remainingCogs = allCogs.filter(c => !placedCogs.has(c));
+
+  // Classify cogs
+  const localBoostCogs = remainingCogs.filter(c => c.boostRadius && c.boostRadius !== 'everything');
+  const everythingCogs = remainingCogs.filter(c => c.boostRadius === 'everything');
+  const statCogs = remainingCogs.filter(c => !c.boostRadius);
+
+  localBoostCogs.sort((a, b) => boostScore(b) - boostScore(a));
+  statCogs.sort((a, b) => rawScore(b) - rawScore(a));
 
   // Step 1: Place local boost cogs at positions with max on-board coverage
   for (const boostCog of localBoostCogs) {
