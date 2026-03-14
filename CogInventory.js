@@ -244,7 +244,8 @@ class CogInventory {
                 const index = parseInt(match[1]);
                 hatIcons[v] = {
                   type: "hat",
-                  path: window.player.render(index)
+                  path: window.player.render(index),
+                  className: className
                 };
                 hatFound = true;
               }
@@ -255,7 +256,8 @@ class CogInventory {
         if (!hatFound) {
           hatIcons[v] = {
             type: "head",
-						path: "icons/head.png"
+						path: "icons/head.png",
+            className: className
           };
         }
       });
@@ -275,6 +277,7 @@ class CogInventory {
         icon.path = "assets/cog_blank.png"
       } else if(c.startsWith("Player")) {
         icon = hatIcons[c.substring(7)] || { type: "head", path: "icons/head.png" };
+        icon.playerName = c.substring(7);
       } else if(c === "CogY") {
         icon.type = "cog";
         icon.path = "icons/cogs/Yang_Cog.png";

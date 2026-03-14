@@ -134,6 +134,7 @@ class BoardRenderer {
         col.appendChild(div);
       }
 
+      col.title = "";
       if (cog.icon.type === "blank") {
         div.style.backgroundImage = "";
         div.innerHTML = "";
@@ -144,6 +145,10 @@ class BoardRenderer {
         div.style["background-size"] = `contain`;
         div.style.removeProperty("transform");
         div.innerHTML = "";
+        var tooltipParts = [];
+        if (cog.icon.playerName) tooltipParts.push(cog.icon.playerName);
+        if (cog.icon.className) tooltipParts.push(cog.icon.className);
+        col.title = tooltipParts.join(' — ') || "Player";
       } else if (cog.icon.type === "smallcog") {
         div.style.removeProperty("background-size");
         div.style.removeProperty("transform");
