@@ -11,5 +11,7 @@
 - Rearranging your board takes **fewer steps** overall because the optimizer no longer chains moves through spare inventory positions unnecessarily
 - **Locked slots** and **flag positions** are now shown with overlay icons on the board so you can tell at a glance which positions the solver can't touch
 - **Quick-run strategy buttons** appear after your theoretical maximums are calculated — run Balanced, XP Focused, or Flaggy Push directly without opening settings
+- **Cog Shelf** is now visible to the left of the board showing all 12 cog making slots with Nooby/Decent/Superb/Ultimate tier labels — step replay updates it so you can see players moving in and out
+- **Player labels** — each player cog shows a short letter+digit label (e.g. M, D1, D2) so you can tell them apart at a glance, with full name and class on hover
 - **Report Bug button** in the top bar lets you describe an issue and send a report with a screenshot and your cog data attached — no account needed
 - **Settings panel** is accessible from the Loader tab so you can configure solve time and strategy before loading your data
