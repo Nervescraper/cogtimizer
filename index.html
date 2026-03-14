@@ -24,7 +24,9 @@
     <script type="text/javascript" src="BoardRenderer.js"></script>
     <script type="text/javascript" src="PlayerRenderer.js"></script>
     <script type="text/javascript" src="Paginator.js"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script type="text/javascript" src="bugReporter.js"></script>
+
     <title>Cogtimizer</title>
   </head>
   <body>
@@ -49,6 +51,7 @@
         </button>
       </div>
       <div class="spacer"></div>
+      <button id="report-bug-btn" class="bug-btn" onclick="showBugForm()" style="font-size:8px; padding:5px 10px; margin-top:auto; margin-bottom:auto;">Report Bug</button>
       <div class="crow"></div>
     </div>
     <div class="content">
@@ -183,8 +186,86 @@
       <p id="start"></p>
       <div id="balanced-details"></div>
       <div id="solution-history"></div>
+      <div id="bug-report-section">
+        <span id="bug-report-status" style="margin-left:8px;"></span>
+        <div id="bug-form" style="display:none; margin-top:8px;">
+          <p style="font-size:0.9em; margin:4px 0;">Briefly describe what went wrong:</p>
+          <textarea id="bug-description" rows="3" cols="60" style="width:100%; max-width:40em; margin-bottom:6px;" placeholder="e.g. Board shows blank slots after solving with Flaggy Push"></textarea>
+          <br/>
+          <button class="bug-btn" onclick="sendBugReport()">Send Report</button>
+          <button class="bug-btn" onclick="hideBugForm()" style="background-color:#3a2020; border-color:#5a3030;">Cancel</button>
+        </div>
+      </div>
     </div>
     <script type="text/javascript">
+      const bugReporter = new BugReporter({
+        endpoint: 'https://bug-reporter-worker.twilight-lake-30a3.workers.dev/report',
+        appName: 'Cogtimizer',
+      });
+      bugReporter.init();
+
+      function showBugForm() {
+        document.getElementById('bug-form').style.display = '';
+        document.getElementById('bug-description').focus();
+      }
+
+      function hideBugForm() {
+        document.getElementById('bug-form').style.display = 'none';
+      }
+
+      async function sendBugReport() {
+        const description = document.getElementById('bug-description').value.trim();
+        if (!description) {
+          document.getElementById('bug-description').placeholder = 'Please describe the issue before sending';
+          document.getElementById('bug-description').focus();
+          return;
+        }
+        const status = document.getElementById('bug-report-status');
+        hideBugForm();
+        status.innerText = 'Sending...';
+
+        const customData = { description };
+        if (window._rawImportData) {
+          try { customData.rawImport = JSON.parse(window._rawImportData); }
+          catch { customData.rawImport = window._rawImportData; }
+        }
+        if (window.originalCogInventory) {
+          customData.original = JSON.parse(serialize(window.originalCogInventory));
+        }
+        if (typeof currentSolutionIndex !== 'undefined') {
+          customData.currentSolutionIndex = currentSolutionIndex;
+        }
+        if (typeof optimalSteps !== 'undefined' && optimalSteps) {
+          customData.stepCount = optimalSteps.length;
+        }
+        if (typeof solutionHistory !== 'undefined' && solutionHistory.length > 0) {
+          // Summary of all runs
+          customData.solutionSummary = solutionHistory.map((entry, i) => ({
+            run: i + 1,
+            label: entry.label,
+            scores: entry.scores,
+          }));
+          // Full inventory for the 5 most recent runs
+          const recent = solutionHistory.slice(-5);
+          const offset = solutionHistory.length - recent.length;
+          customData.recentSolutions = recent.map((entry, i) => ({
+            run: offset + i + 1,
+            label: entry.label,
+            scores: entry.scores,
+            inventory: JSON.parse(serialize(entry.inventory)),
+          }));
+        }
+
+        const result = await bugReporter.send(customData);
+        if (result.ok) {
+          status.innerText = 'Sent! Thanks for reporting.';
+          bugReporter.flush();
+        } else {
+          status.innerText = 'Failed to send: ' + (result.error || `status ${result.status}`);
+        }
+        setTimeout(() => { status.innerText = ''; }, 5000);
+      }
+
       function createSwitchAnimation() {
         let fromDiv,
             timerID;
@@ -606,6 +687,7 @@
 
       document.getElementById("load").addEventListener("click", () => {
         const input = document.getElementById("input").value;
+        window._rawImportData = input;
         try {
           const save = JSON.parse(input);
           load(save);
@@ -1291,7 +1373,7 @@
             if (preset === "balanced") {
               best = await runBalancedPhase2(solveTime, iterations, solveTextElem);
             } else {
-              const priorities = WEIGHT_PRESETS[preset];
+              const priorities = WEIGHT_PRESETS[preset] || { buildRate: 33, expBonus: 34, flaggy: 33 };
               const weights = prioritiesToWeights(priorities, originalScore, playerCount, flagCount);
               solver.setWeights(weights.buildRate, weights.expBonus, weights.flaggy);
               best = await runSolveIterations(window.originalCogInventory, solveTime, iterations, (i, n) => {

@@ -616,3 +616,18 @@ body {
     opacity: 0.5;
     cursor: default;
 }
+
+.bug-btn {
+    font-family: 'PressStart';
+    font-size: 9px;
+    padding: 8px 14px;
+    background-color: #2a4a7a;
+    color: #c8d6e5;
+    border: 1px solid #3a6aaa;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.bug-btn:hover {
+    background-color: #3a6aaa;
+}
